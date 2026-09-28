@@ -57,7 +57,8 @@ export class Stream {
           // travelling bulges: the water that left the lip at time (uTime - t) carries its own wobble
           float born = uTime - aAlong.x;
           float bulge = 0.22 * sin(born * 37.0) + 0.14 * sin(born * 61.0 + 1.3) + 0.08 * sin(born * 97.0 + 2.1);
-          bulge *= smoothstep(0.0, 0.08, aAlong.x);
+          // the column starts smooth and grows lumpier as it falls, on its way to breaking into drops
+          bulge *= smoothstep(0.0, 0.08, aAlong.x) * (1.0 + aAlong.x * 7.0);
           vec3 p = position + normal * aAlong.y * bulge;
           vPos = (modelMatrix * vec4(p, 1.0)).xyz;
           vNrm = normalize(mat3(modelMatrix) * normal);
@@ -89,9 +90,11 @@ export class Stream {
           float foam = uFoam * smoothstep(0.15, 0.45, streak);
           vec3 white = vec3(0.75, 0.8, 0.8) * (0.35 + 0.25 * max(dot(n, uSunDir), 0.0)) + uSunCol * 0.04;
           // what is left of the view straight through: most of it, a little tinted
-          float through = (1.0 - F) * (1.0 - foam) * 0.82;
+          float through = (1.0 - F) * (1.0 - foam) * 0.72;
           float a = 1.0 - through;
-          vec3 col = refl * F + white * foam + vec3(0.01, 0.025, 0.028) * (1.0 - F);
+          // sunlight caught inside the column: it glows a little where the sun is behind or beside it
+          float sunIn = pow(max(dot(-v, uSunDir) * 0.5 + 0.5, 0.0), 3.0);
+          vec3 col = refl * F + white * foam + (vec3(0.01, 0.025, 0.028) + uSunCol * 0.035 * sunIn) * (1.0 - F);
           gl_FragColor = vec4(col / max(a, 1e-3), a);
           #include <tonemapping_fragment>
           #include <colorspace_fragment>

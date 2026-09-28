@@ -40,7 +40,7 @@ vec3 envProcedural(vec3 d) {
   float az = atan(d.z, d.x), el = asin(clamp(d.y, -1.0, 1.0));
   vec2 p = vec2(az * 2.2, el * 3.0);
   // how much foliage fills this direction (the canopy thins toward the zenith)
-  float leaves = smoothstep(0.3, 0.6, envFbm(p * 1.3) + 0.7 - 0.35 * smoothstep(0.5, 1.4, el));
+  float leaves = smoothstep(0.3, 0.6, envFbm(p * 1.3) + 0.7 - 0.6 * smoothstep(0.45, 1.3, el));
   float sunward = pow(max(dot(d, uSunDir), 0.0), 2.0);
   float lit = envFbm(p * 2.1 + 5.0);
   vec3 foliage = mix(uShadeCol, uLeafCol, smoothstep(0.3, 0.7, lit));

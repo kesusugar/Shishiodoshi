@@ -30,7 +30,7 @@ export class SimView {
     fleshColor: THREE.Color,
   ) {
     const cfg = sim.cfg;
-    this.kakeiStream = new Stream(env);
+    this.kakeiStream = new Stream(env, 1.5);
     const { spout, velocity, flow } = cfg.inflow;
     this.kakeiStream.set(new THREE.Vector3(spout.x, spout.y, 0), new THREE.Vector3(velocity.x, velocity.y, 0), flow, 0, 0);
     this.pour = new Stream(env, 0.8);

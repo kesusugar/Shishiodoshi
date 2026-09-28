@@ -86,6 +86,9 @@ export function bambooSkin(opt: BambooSkinOptions): SurfaceMaps {
     c = mix(c, dark, 0.5 * smooth(0.4, 0.8, streak) + 0.55 * spots);
     c = mix(c, pale, 0.25 * smooth(0.5, 0.9, fib));
     c = c.map((k) => k * (0.8 + 0.4 * fib)) as Rgb;
+    // grime: dark streaks running along the culm where water has run and dried
+    const grime = smooth(0.58, 0.8, n.fbm(x * 1.5 + 40, v * aroundCells * 0.12, 4, 1e6, Math.max(1, Math.round(aroundCells * 0.12))));
+    c = mix(c, hex('#3a2c18'), 0.55 * grime);
     let bump = 0.5 + 0.12 * (fib - 0.5) + 0.05 * (streak - 0.5);
     let rough = 0.35 + 0.25 * mottle + 0.2 * spots;
     for (const nu of opt.nodes) {
