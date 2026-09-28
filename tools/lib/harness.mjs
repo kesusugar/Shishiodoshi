@@ -3,6 +3,10 @@
 //
 // Uses the system Edge (no browser download). Pass --swiftshader only on machines without a GPU
 // (cloud / CI); it is the same software-rendering setup as caustic-volume's tests.
+//
+// Environment overrides (set by .claude/hooks/session-start.sh in cloud sessions):
+//   SHISHI_BROWSER=/path/to/chrome   launch this Chromium instead of the system Edge
+//   SHISHI_SWIFTSHADER=1             always use software WebGL (as if --swiftshader were passed)
 import { chromium } from 'playwright';
 import { createServer } from 'vite';
 import { fileURLToPath } from 'node:url';
@@ -30,10 +34,12 @@ export async function openApp(opts = {}) {
   await server.listen();
   const base = server.resolvedUrls.local[0]; // ends with /Shishiodoshi/
 
+  const exe = process.env.SHISHI_BROWSER;
+  const swiftshader = opts.swiftshader || process.env.SHISHI_SWIFTSHADER === '1';
   const browser = await chromium.launch({
-    channel: 'msedge',
+    ...(exe ? { executablePath: exe } : { channel: 'msedge' }),
     headless: !opts.headed,
-    args: opts.swiftshader ? SWIFTSHADER_ARGS : ['--ignore-gpu-blocklist'],
+    args: swiftshader ? SWIFTSHADER_ARGS : ['--ignore-gpu-blocklist'],
   });
   const page = await browser.newPage({
     viewport: { width: opts.width ?? 1600, height: opts.height ?? 900 },
