@@ -104,8 +104,8 @@ export function mapleLeafTexture(seed = 5): THREE.CanvasTexture {
  * The leaf's surface (unit size, facing +z): not flat. Each leaf cups a little, droops toward its
  * tips and has a crease along the middle, so light and shadow break across it as on a real leaf.
  */
-export function leafGeometry(size: number): THREE.BufferGeometry {
-  const g = new THREE.PlaneGeometry(1, 1, 10, 10);
+export function leafGeometry(size: number, segments = 4): THREE.BufferGeometry {
+  const g = new THREE.PlaneGeometry(1, 1, segments, segments);
   const pos = g.getAttribute('position') as THREE.BufferAttribute;
   for (let i = 0; i < pos.count; i++) {
     const x = pos.getX(i), y = pos.getY(i) + 0.1; // the lobes meet a little below the centre

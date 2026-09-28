@@ -155,7 +155,7 @@ export function buildGarden(season: Season, _canopy: Canopy['uniforms'], basin: 
       if (rand() < 0.04) col.set('#b8761c');
       mesh.setColorAt(i, col);
     }
-    mesh.castShadow = true;
+    // out of focus in front of the camera: its shadow would cost more than it shows
     branches.push(mesh);
     root.add(mesh);
   }
