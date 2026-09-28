@@ -1,6 +1,8 @@
 # Shishiodoshi
 
-ブラウザで動く、極限までリアルなししおどし（three.js / WebGL2 / Web Audio）。全体プランは [docs/PLAN.md](docs/PLAN.md)。
+ブラウザで動く、極限までリアルなししおどし（three.js / WebGL2 / Web Audio）。
+
+公開ページ: https://kesusugar.github.io/Shishiodoshi/ （`main` に push すると GitHub Actions で自動的に公開されます）全体プランは [docs/PLAN.md](docs/PLAN.md)。
 
 ## 使い方
 
