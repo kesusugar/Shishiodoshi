@@ -112,10 +112,13 @@ renderer.setAnimationLoop((timestamp) => {
   if (!off.has('water')) water.update(dt);
   controls.update();
   if (off.has('dof')) renderer.render(scene, camera);
-  else post.render(controls.target);
+  else {
+    post.adapt(dt);
+    post.render(controls.target);
+  }
 
   const st = sim.state;
-  hud.frame(dt, `sim ${st.time.toFixed(1)} s  ${THREE.MathUtils.radToDeg(st.angle).toFixed(1)} deg  ${(st.volume * 1e6).toFixed(0)} mL`);
+  hud.frame(dt, `res ${(post.scale * 100).toFixed(0)}%  sim ${st.time.toFixed(1)} s  ${THREE.MathUtils.radToDeg(st.angle).toFixed(1)} deg  ${(st.volume * 1e6).toFixed(0)} mL`);
   probe.frames++;
   probe.simTime = st.time;
   probe.fps = hud.currentFps;
