@@ -2,13 +2,13 @@
 //
 //   node tools/shot.mjs                  # system Edge with the real GPU
 //   node tools/shot.mjs --swiftshader    # no-GPU machines (software WebGL)
-//   node tools/shot.mjs --views=ref1 --width=1920 --height=1080 --headed
+//   node tools/shot.mjs --views=main --width=1920 --height=1080 --headed
 import { mkdir } from 'node:fs/promises';
 import path from 'node:path';
 import { openApp, outDir, parseArgs } from './lib/harness.mjs';
 
 const args = parseArgs();
-const views = String(args.views ?? 'ref1,close').split(',');
+const views = String(args.views ?? 'main,close,wide').split(',');
 
 await mkdir(outDir, { recursive: true });
 const app = await openApp({

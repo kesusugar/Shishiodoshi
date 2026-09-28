@@ -2,13 +2,13 @@ import type { Season } from './types';
 
 export const summer: Season = {
   name: 'summer',
-  sky: { top: '#9fc3e0', horizon: '#dfe9d8' },
-  haze: { color: '#7f9a6a', density: 0.06 },
-  sun: { color: '#fff1d6', intensity: 3.0, elevation: 58, azimuth: 35 },
-  ambient: { sky: '#cfe3ff', ground: '#3e4a2a', intensity: 0.9 },
-  foliage: { leaf: '#3f7a2c', moss: '#6f9a2a', backdrop: '#4d7a36' },
-  bamboo: { age: 0.7, fresh: '#7c9a3a', aged: '#b89a5e' },
-  stone: { basin: '#77736b', lava: '#4a4541', ground: '#4b3f30' },
+  sky: { top: '#dfeaf0' },
+  // high and from the left, a little behind: backlit leaves and glints on the water (ref2), while the
+  // front of the bamboo still catches some light
+  sun: { color: '#fff0d4', intensity: 4.5, elevation: 50, azimuth: 250 },
+  ambient: { envIntensity: 0.55, fill: 0.35 },
+  foliage: { leaf: '#6f9a4a', leafLit: '#e2ecb0', shade: '#2e4024', moss: '#58751f' },
+  bamboo: { age: 0.9, fresh: '#8fa546', aged: '#caa565' },
   wind: 0.25,
   falling: null,
 };

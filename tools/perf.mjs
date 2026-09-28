@@ -1,7 +1,7 @@
 // Measure frame rate over a few seconds and report frame-time percentiles.
 // Headless Edge still uses the real GPU; pass --headed to measure in a visible window.
 //
-//   node tools/perf.mjs [--seconds=5] [--view=ref1] [--width=1920 --height=1080] [--headed] [--swiftshader]
+//   node tools/perf.mjs [--seconds=5] [--view=main] [--off=dof,stream,water,shadow] [--width=1920 --height=1080] [--headed] [--swiftshader]
 import { openApp, parseArgs } from './lib/harness.mjs';
 
 const args = parseArgs();
@@ -16,7 +16,7 @@ const app = await openApp({
 
 let failed = false;
 try {
-  const probe = await app.load(`view=${args.view ?? 'ref1'}`);
+  const probe = await app.load(`view=${args.view ?? 'main'}${args.off ? `&off=${args.off}` : ''}`);
   await app.frames(30); // warm up (shader compile, shadow maps)
   const times = await app.page.evaluate(
     (ms) =>

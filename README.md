@@ -9,7 +9,9 @@ npm install
 npm run dev        # http://localhost:5173/Shishiodoshi/ （クリックで開始）
 ```
 
-URL オプション: `?view=close`（寄りのカメラ）、`?capture`（UI を隠す。検証スクリプト用）
+URL オプション: `?view=close`（口と水の寄り）・`?view=mouth`（竹の口の接写）・`?view=wide`（引き）、`?capture`（UI を隠す。検証スクリプト用）、`?off=dof,stream,water,shadow`（機能を切って負荷を測る）
+
+鉢の水面をクリックすると波紋が立ちます。
 
 ## 検証
 
