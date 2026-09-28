@@ -25,6 +25,7 @@
   - GPU を使うので fps の計測も意味がある。ソフトウェア描画のフラグ（`--use-angle=swiftshader` など）はクラウドなど GPU がない環境のときだけ付ける
 - 見た目の確認: スクリーンショットを撮って自分で見て、`docs/reference/` の参考画像と比べる
 - 音の確認: OfflineAudioContext で WAV に書き出し、スペクトログラム画像を作って確かめる。**聞き心地の最終判断はユーザーの耳**なので、段階の終わりに `npm run dev` で聞いてもらい、感想をもらう
+- クラウドのセッション（GPU も Edge もない）では、SessionStart フックが `SHISHI_BROWSER` と `SHISHI_SWIFTSHADER=1` を設定するので、同じツールがそのまま動く（fps は測れない）
 - 開発サーバー: `npm run dev` → `http://localhost:5173/Shishiodoshi/`（音はクリックしてから鳴る）
 
 ## コミット

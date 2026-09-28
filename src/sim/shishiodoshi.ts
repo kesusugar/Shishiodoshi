@@ -4,6 +4,9 @@ import { contactTorque, tubeMassProps, type MassProps } from './rigidBody';
 import { streamLanding, type StreamLanding } from './stream';
 import { TubeHydro, type WaterShape } from './tubeHydro';
 
+/** Angular speed (rad/s) of a typical first strike at the default flow: a strike's intensity is relative to it. */
+export const STRIKE_OMEGA_REF = 2.6;
+
 /** Everything that changes. Plain numbers, so a state can be copied and compared. */
 export interface SimState {
   time: number;
@@ -141,8 +144,16 @@ export class ShishiodoshiSim {
     // events
     const contact = st.angle > cfg.restAngle;
     if (contact && !this.inContact) {
-      // speed of the tube's back end where it meets the stone
-      this.events.push({ type: 'strike', time: st.time, speed: Math.abs(prevOmega) * cfg.tube.back, airLength: this.airLength() });
+      // the step the back end reaches the stone; how hard is set by the swing just before contact
+      const w = Math.abs(prevOmega);
+      this.events.push({
+        type: 'strike',
+        time: st.time,
+        omega: w,
+        speed: w * cfg.tube.back,
+        intensity: Math.min(1.5, w / STRIKE_OMEGA_REF),
+        airLength: this.airLength(),
+      });
     }
     this.inContact = contact;
     const front = st.angle < cfg.frontStopAngle;
