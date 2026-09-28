@@ -9,6 +9,7 @@ import type { Season } from './seasons';
 export const cameraPresets = {
   main: { position: new THREE.Vector3(0.32, 0.72, 1.1), target: new THREE.Vector3(0.0, 0.5, -0.05), fov: 44 },
   close: { position: new THREE.Vector3(0.34, 0.74, 0.7), target: new THREE.Vector3(0.07, 0.44, 0.0), fov: 42 },
+  stream: { position: new THREE.Vector3(0.24, 0.82, 0.32), target: new THREE.Vector3(0.1, 0.79, 0.0), fov: 34 },
   mouth: { position: new THREE.Vector3(0.22, 0.8, 0.36), target: new THREE.Vector3(0.0, 0.66, 0.0), fov: 40 },
   wide: { position: new THREE.Vector3(0.1, 1.1, 1.9), target: new THREE.Vector3(0.0, 0.5, 0.0), fov: 40 },
 } as const;

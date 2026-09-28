@@ -2,6 +2,7 @@ import * as THREE from 'three';
 import type { Canopy } from '../render/canopy';
 import { mulberry32 } from './random';
 import type { Season } from './seasons';
+import { leafGeometry, mapleLeafTexture } from './leaves';
 import { mossyRockMaterial } from './rockMaterial';
 import { rockGeometry } from './shishiodoshi';
 
@@ -13,12 +14,15 @@ import { rockGeometry } from './shishiodoshi';
  */
 export interface Garden {
   root: THREE.Group;
-  /** Leaves floating on the basin: moved by the water (see update). */
-  floating: THREE.Object3D[];
+  /** The maple leaf texture (for the leaves afloat on the basin too). */
+  leafTexture: THREE.Texture;
   update(time: number, wind: number): void;
 }
 
 interface Keepout { x: number; z: number; r: number }
+
+/** Colours of fallen maple leaves: scarlet, gold, crimson, and one browning. */
+export const FALLEN_COLOURS = ['#c8321c', '#d98b1c', '#b52a18', '#8a6a1a'];
 
 export function buildGarden(season: Season, _canopy: Canopy['uniforms'], basin: { center: THREE.Vector3; bowlRadius: number; level: number }): Garden {
   const root = new THREE.Group();
@@ -129,13 +133,14 @@ export function buildGarden(season: Season, _canopy: Canopy['uniforms'], basin: 
 
   // ---- a maple branch hanging into the foreground on the right (out of focus), and one behind
   const mapleTex = mapleLeafTexture();
+  mapleTex.anisotropy = 4;
   const leafMat = new THREE.MeshStandardMaterial({ map: mapleTex, alphaTest: 0.5, side: THREE.DoubleSide, roughness: 0.55 });
   leafMat.emissive = new THREE.Color('#081004');
   const branches: THREE.InstancedMesh[] = [];
   for (const [bx, by, bz, spread, count] of [
     [0.75, 0.95, 0.55, 0.35, 320],
   ] as const) {
-    const mesh = new THREE.InstancedMesh(new THREE.PlaneGeometry(0.05, 0.05), leafMat, count);
+    const mesh = new THREE.InstancedMesh(leafGeometry(0.055), leafMat, count);
     const m = new THREE.Matrix4(), q = new THREE.Quaternion(), e = new THREE.Euler(), p = new THREE.Vector3(), s = new THREE.Vector3();
     const col = new THREE.Color(), leaf = new THREE.Color(season.foliage.leaf);
     for (let i = 0; i < count; i++) {
@@ -193,27 +198,14 @@ export function buildGarden(season: Season, _canopy: Canopy['uniforms'], basin: 
     root.add(lantern);
   }
 
-  // ---- fallen leaves: a few floating on the basin, some on the gravel
-  const floating: THREE.Object3D[] = [];
-  const fallenMat = new THREE.MeshStandardMaterial({ map: mapleTex, alphaTest: 0.5, side: THREE.DoubleSide, roughness: 0.5 });
-  const fallenColours = ['#c8321c', '#d98b1c', '#b52a18', '#8a6a1a'];
-  for (let i = 0; i < 3; i++) {
-    const m = new THREE.MeshStandardMaterial().copy(fallenMat);
-    m.color = new THREE.Color(fallenColours[i % fallenColours.length]);
-    const leaf = new THREE.Mesh(new THREE.PlaneGeometry(0.055, 0.055).rotateX(-Math.PI / 2), m);
-    const a = rand() * 6.28, d = rand() * basin.bowlRadius * 0.7;
-    leaf.position.set(basin.center.x + Math.cos(a) * d, basin.level + 0.002, basin.center.z + Math.sin(a) * d);
-    leaf.rotation.y = rand() * 6.28;
-    leaf.userData.home = leaf.position.clone();
-    leaf.userData.phase = rand() * 6.28;
-    leaf.receiveShadow = true;
-    floating.push(leaf);
-    root.add(leaf);
-  }
+  // ---- fallen leaves on the gravel (those afloat on the basin are render/water/floatingLeaves.ts)
+  const fallenMat = new THREE.MeshStandardMaterial({ map: mapleTex, alphaTest: 0.5, side: THREE.DoubleSide, roughness: 0.6 });
+  const fallenColours = FALLEN_COLOURS;
+  const fallenGeo = leafGeometry(0.05).rotateX(-Math.PI / 2);
   for (let i = 0; i < 9; i++) {
     const m = new THREE.MeshStandardMaterial().copy(fallenMat);
     m.color = new THREE.Color(fallenColours[Math.floor(rand() * fallenColours.length)]).multiplyScalar(0.8);
-    const leaf = new THREE.Mesh(new THREE.PlaneGeometry(0.05, 0.05).rotateX(-Math.PI / 2), m);
+    const leaf = new THREE.Mesh(fallenGeo, m);
     let x = 0, z = 0;
     for (let k = 0; k < 20; k++) {
       x = -0.9 + rand() * 1.8;
@@ -228,18 +220,12 @@ export function buildGarden(season: Season, _canopy: Canopy['uniforms'], basin: 
 
   return {
     root,
-    floating,
+    leafTexture: mapleTex,
     update(time: number, wind: number) {
-      // branches sway with the wind; floating leaves drift in slow circles
+      // branches sway with the wind
       for (const [i, b] of branches.entries()) {
         b.rotation.z = wind * 0.03 * Math.sin(time * 0.9 + i) + wind * 0.015 * Math.sin(time * 2.3 + i * 2);
         b.rotation.x = wind * 0.02 * Math.sin(time * 0.7 + i * 1.7);
-      }
-      for (const leaf of floating) {
-        const h = leaf.userData.home as THREE.Vector3, ph = leaf.userData.phase as number;
-        leaf.position.x = h.x + 0.02 * Math.sin(time * 0.07 + ph);
-        leaf.position.z = h.z + 0.02 * Math.cos(time * 0.05 + ph);
-        leaf.rotation.y += 0.0005;
       }
     },
   };
@@ -283,36 +269,3 @@ function fernFrond(rand: () => number): THREE.BufferGeometry {
   return g;
 }
 
-/** A Japanese maple leaf: seven pointed lobes, drawn once into a texture (white; tinted by colour). */
-function mapleLeafTexture(): THREE.CanvasTexture {
-  const S = 256;
-  const c = document.createElement('canvas');
-  c.width = c.height = S;
-  const g = c.getContext('2d')!;
-  g.translate(S / 2, S * 0.6);
-  g.fillStyle = '#fff';
-  g.beginPath();
-  const lobes = 7;
-  for (let i = 0; i <= lobes * 2; i++) {
-    const a = -Math.PI / 2 + ((i / (lobes * 2)) * 2 - 1) * Math.PI * 0.82;
-    const r = i % 2 === 0 ? S * (0.46 - 0.12 * Math.abs(Math.sin(((i / (lobes * 2)) * 2 - 1) * Math.PI * 0.5))) : S * 0.14;
-    g.lineTo(Math.cos(a) * r, Math.sin(a) * r);
-  }
-  g.closePath();
-  g.fill();
-  // veins, slightly darker
-  g.strokeStyle = 'rgba(0,0,0,0.25)';
-  g.lineWidth = 3;
-  for (let i = 0; i < lobes; i++) {
-    const a = -Math.PI / 2 + ((i / (lobes - 1)) * 2 - 1) * Math.PI * 0.72;
-    g.beginPath();
-    g.moveTo(0, 0);
-    g.lineTo(Math.cos(a) * S * 0.36, Math.sin(a) * S * 0.36);
-    g.stroke();
-  }
-  // stalk
-  g.fillRect(-2, 0, 4, S * 0.35);
-  const t = new THREE.CanvasTexture(c);
-  t.colorSpace = THREE.SRGBColorSpace;
-  return t;
-}

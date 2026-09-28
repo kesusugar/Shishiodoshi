@@ -332,6 +332,11 @@ export class BasinWater {
     if (Math.hypot(x, z) < this.spec.bowlRadius) this.drops.push([x, z, radius, height]);
   }
 
+  /** The surface texture (height above the rest level, slopes, foam), for things afloat. */
+  get surfaceUniform(): THREE.IUniform {
+    return this.U.uSurf;
+  }
+
   /** The world-space plane of the water at rest (for picking). */
   get level(): number {
     return this.spec.waterLevel;

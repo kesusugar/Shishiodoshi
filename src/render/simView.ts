@@ -4,6 +4,7 @@ import { mulberry32 } from '../scene/random';
 import type { ShishiodoshiScene } from '../scene/shishiodoshi';
 import type { EnvUniforms } from './env';
 import type { BasinWater } from './water/basinWater';
+import { FloatingLeaves } from './water/floatingLeaves';
 import { Splash } from './water/splash';
 import { Stream } from './water/stream';
 import { TubeWater } from './water/tubeWater';
@@ -17,6 +18,7 @@ export class SimView {
   readonly pour: Stream;
   readonly tubeWater: TubeWater;
   readonly splash: Splash;
+  floating: FloatingLeaves | null = null;
   private splashAcc = 0;
   private prevAngle: number;
   private readonly rand = mulberry32(9);
@@ -30,7 +32,9 @@ export class SimView {
     fleshColor: THREE.Color,
   ) {
     const cfg = sim.cfg;
-    this.kakeiStream = new Stream(env, 1.5);
+    this.kakeiStream = new Stream(env);
+    // a thin stream breaks up into drops (Plateau-Rayleigh) after falling a short way
+    this.kakeiStream.uBreak.value = 0.1;
     const { spout, velocity, flow } = cfg.inflow;
     this.kakeiStream.set(new THREE.Vector3(spout.x, spout.y, 0), new THREE.Vector3(velocity.x, velocity.y, 0), flow, 0, 0);
     this.pour = new Stream(env, 0.8);
@@ -79,6 +83,7 @@ export class SimView {
       const n = Math.floor(this.splashAcc);
       this.splashAcc -= n;
       this.splash.emit(this.tmp.set(land.x, land.y, 0), n, [0.2, 0.7], [0.0004, 0.0012]);
+      this.floating?.push(this.tmp.set(land.x, land.y, 0), 0.4, dt);
     }
     this.tubeWater.update(out.surface, hit, st.time);
 
@@ -109,11 +114,13 @@ export class SimView {
         const n = Math.floor(this.splashAcc);
         this.splashAcc -= n;
         this.splash.emit(this.tmp.set(lip.x + vel.x * t, cfg.basinLevel, 0), n, [0.4, 1.4], [0.0008, 0.003], new THREE.Vector3(vel.x * 0.3, 0, 0));
+        this.floating?.push(this.tmp.set(lip.x + vel.x * t, cfg.basinLevel, 0), 6 * k, dt);
       }
     } else {
       this.pour.set(this.tmp, this.tmp, 0, 0, 0);
     }
     this.splash.update(dt);
+    this.floating?.update(dt, 0.25);
   }
 
   private fallTime(y0: number, vy: number, y1: number): number {

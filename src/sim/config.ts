@@ -70,8 +70,9 @@ const spout = {
   y: kakei.y - (kakei.postX - kakei.tipX) * Math.tan(kakei.slope) - lipDrop * Math.cos(kakei.slope),
 };
 
-const flow = 20e-6; // 20 mL/s
-const lipSpeed = 0.35;
+// a gentle kakei: about a tablespoon a second, barely pushed off its lip, so it falls almost straight
+const flow = 16e-6; // 16 mL/s
+const lipSpeed = 0.18;
 const lipR = Math.sqrt(flow / (Math.PI * lipSpeed));
 
 export const defaultConfig: SimConfig = {

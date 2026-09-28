@@ -9,7 +9,8 @@ import { Canopy } from './render/canopy';
 import { Post } from './render/post';
 import { BasinWater } from './render/water/basinWater';
 import { SimView } from './render/simView';
-import { buildGarden } from './scene/garden';
+import { FloatingLeaves } from './render/water/floatingLeaves';
+import { buildGarden, FALLEN_COLOURS } from './scene/garden';
 import { buildShishiodoshi } from './scene/shishiodoshi';
 import { defaultSeason } from './scene/seasons';
 import { buildStage, cameraPresets, type CameraPreset } from './scene/stage';
@@ -86,6 +87,13 @@ const tipButton = document.querySelector<HTMLButtonElement>('#tip')!;
 tipButton.addEventListener('click', () => sim.topUp());
 if (capture) tipButton.hidden = true;
 if (!off.has('stream')) scene.add(simView.kakeiStream.mesh, simView.pour.mesh, simView.splash.mesh);
+// fallen leaves afloat on the basin, riding its ripples and pushed about by the water
+simView.floating = new FloatingLeaves(
+  { uSurf: water.surfaceUniform, center: world.basin.center, bowlRadius: world.basin.bowlRadius, level: world.basin.waterLevel },
+  garden.leafTexture,
+  [FALLEN_COLOURS[0], FALLEN_COLOURS[1], FALLEN_COLOURS[2]],
+);
+if (!off.has('garden')) scene.add(simView.floating.group);
 
 const preset = cameraPresets[view] ?? cameraPresets.main;
 const camera = new THREE.PerspectiveCamera(preset.fov, 1, 0.01, 100);

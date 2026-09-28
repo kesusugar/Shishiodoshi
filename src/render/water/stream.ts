@@ -9,7 +9,7 @@ import { ENV_GLSL, type EnvUniforms } from '../env';
  */
 
 const G = 9.81;
-const SEGS = 64;
+const SEGS = 160;
 const AROUND = 12;
 
 export class Stream {
@@ -18,6 +18,8 @@ export class Stream {
   private readonly uEndY = { value: -1 };
   /** How much air the water carries (white streaks): 0 for the clear kakei stream, more for the pour. */
   readonly uFoam = { value: 0 };
+  /** Time after leaving the lip at which the column has broken into drops (s); 0 = never. */
+  readonly uBreak = { value: 0 };
   private readonly pos: Float32Array;
   private readonly nrm: Float32Array;
   private readonly along: Float32Array;
@@ -45,12 +47,12 @@ export class Stream {
     // A rod of clear water, blended over what is behind it: its rim reflects the garden (Fresnel),
     // the sun glints off it, and in a pour, streaks of entrained air ride along with the water.
     const mat = new THREE.ShaderMaterial({
-      uniforms: { ...env, uTime: this.uTime, uEndY: this.uEndY, uFoam: this.uFoam },
+      uniforms: { ...env, uTime: this.uTime, uEndY: this.uEndY, uFoam: this.uFoam, uBreak: this.uBreak },
       transparent: true,
       depthWrite: true,
       vertexShader: /* glsl */ `
         attribute vec3 aAlong;   // time since leaving the lip (s), radius (m), around (0..1)
-        uniform float uTime;
+        uniform float uTime, uBreak;
         varying vec3 vPos, vNrm;
         varying vec2 vFlow;      // where this bit of water left the lip (time), and around the stream
         void main() {
@@ -58,8 +60,18 @@ export class Stream {
           float born = uTime - aAlong.x;
           float bulge = 0.22 * sin(born * 37.0) + 0.14 * sin(born * 61.0 + 1.3) + 0.08 * sin(born * 97.0 + 2.1);
           // the column starts smooth and grows lumpier as it falls, on its way to breaking into drops
-          bulge *= smoothstep(0.0, 0.08, aAlong.x) * (1.0 + aAlong.x * 7.0);
+          bulge *= smoothstep(0.0, 0.08, aAlong.x) * (1.0 + aAlong.x * 3.0);
           vec3 p = position + normal * aAlong.y * bulge;
+          // break-up: the column pinches into a string of beads that travel with the water; each bead
+          // holds the water of a stretch of column, so it is a little fatter than the column was
+          if (uBreak > 0.0) {
+            float k = smoothstep(uBreak * 0.6, uBreak * 1.4, aAlong.x);
+            float f = fract(born * 60.0 + 0.3 * sin(born * 11.0));
+            // a bead over part of each period, a gap over the rest
+            float x = f / 0.55;
+            float bead = x < 1.0 ? sqrt(max(0.0, 1.0 - pow(2.0 * x - 1.0, 2.0))) * 1.5 : 0.0;
+            p -= normal * aAlong.y * (1.0 + bulge) * (1.0 - mix(1.0, bead, k));
+          }
           vPos = (modelMatrix * vec4(p, 1.0)).xyz;
           vNrm = normalize(mat3(modelMatrix) * normal);
           vFlow = vec2(born, aAlong.z);
