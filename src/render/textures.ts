@@ -176,7 +176,7 @@ export function mossyGround(seed: number): SurfaceMaps {
  */
 export function andesite(seed: number): SurfaceMaps {
   const n = new Noise2(seed);
-  const base = hex('#45443f'), light = hex('#7d7a71'), dark = hex('#1e1e1c'), lichen = hex('#8e9078');
+  const base = hex('#5e5c55'), light = hex('#9a968b'), dark = hex('#2a2927'), lichen = hex('#9a9c80');
   return makeMaps(512, 512, (u, v, o) => {
     const big = n.fbm(u * 4, v * 4, 5, 4, 4);
     const speck = n.value(u * 260, v * 260, 260, 260);

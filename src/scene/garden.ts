@@ -1,8 +1,8 @@
 import * as THREE from 'three';
 import type { Canopy } from '../render/canopy';
-import { andesite } from '../render/textures';
 import { mulberry32 } from './random';
 import type { Season } from './seasons';
+import { mossyRockMaterial } from './rockMaterial';
 import { rockGeometry } from './shishiodoshi';
 
 /**
@@ -71,34 +71,7 @@ export function buildGarden(season: Season, _canopy: Canopy['uniforms'], basin: 
 
   // ---- mossy boulders behind and to the sides
   {
-    const stone = andesite(55);
-    const mossCol = new THREE.Color(season.foliage.moss);
-    const mat = new THREE.MeshStandardMaterial({ map: stone.color, bumpMap: stone.bump, bumpScale: 4, roughnessMap: stone.rough, roughness: 1 });
-    mat.onBeforeCompile = (sh) => {
-      sh.uniforms.uMoss = { value: mossCol };
-      sh.vertexShader = sh.vertexShader
-        .replace('#include <common>', '#include <common>\nvarying vec3 vUp;\nvarying vec3 vObjPos;')
-        .replace('#include <begin_vertex>', '#include <begin_vertex>\nvUp = normalize(mat3(modelMatrix) * normal);\nvObjPos = position;');
-      sh.fragmentShader = sh.fragmentShader
-        .replace('#include <common>', `#include <common>
-          varying vec3 vUp;
-          varying vec3 vObjPos;
-          uniform vec3 uMoss;
-          float mh(vec3 p) { return fract(sin(dot(p, vec3(12.9898, 78.233, 37.719))) * 43758.5453); }
-          float mn(vec3 p) { vec3 i = floor(p), f = fract(p); f = f * f * (3.0 - 2.0 * f);
-            return mix(mix(mix(mh(i), mh(i + vec3(1,0,0)), f.x), mix(mh(i + vec3(0,1,0)), mh(i + vec3(1,1,0)), f.x), f.y),
-                       mix(mix(mh(i + vec3(0,0,1)), mh(i + vec3(1,0,1)), f.x), mix(mh(i + vec3(0,1,1)), mh(i + vec3(1,1,1)), f.x), f.y), f.z); }`)
-        .replace(
-          '#include <map_fragment>',
-          `#include <map_fragment>
-          // moss on what faces the sky, in patches, fuzzy at the edges
-          float patchy = mn(vObjPos * 5.0) * 0.6 + mn(vObjPos * 17.0) * 0.4;
-          float mossK = smoothstep(0.25, 0.6, vUp.y + (patchy - 0.5) * 0.9);
-          float fuzz = mn(vObjPos * 90.0);
-          diffuseColor.rgb = mix(diffuseColor.rgb, uMoss * (0.35 + 0.9 * fuzz) * (0.7 + 0.5 * patchy), mossK);`,
-        )
-        .replace('#include <roughnessmap_fragment>', '#include <roughnessmap_fragment>\nroughnessFactor = mix(roughnessFactor, 1.0, mossK);');
-    };
+    const mat = mossyRockMaterial(season, 55);
     const spots: [number, number, number, number, number][] = [
       // x, z, width, height, depth
       [-0.95, -0.55, 0.45, 0.42, 0.4],
@@ -157,14 +130,13 @@ export function buildGarden(season: Season, _canopy: Canopy['uniforms'], basin: 
 
   // ---- a maple branch hanging into the foreground on the right (out of focus), and one behind
   const mapleTex = mapleLeafTexture();
-  const leafMat = new THREE.MeshStandardMaterial({ map: mapleTex, alphaTest: 0.5, side: THREE.DoubleSide, roughness: 0.7 });
-  leafMat.emissive = new THREE.Color('#0f1d06');
+  const leafMat = new THREE.MeshStandardMaterial({ map: mapleTex, alphaTest: 0.5, side: THREE.DoubleSide, roughness: 0.55 });
+  leafMat.emissive = new THREE.Color('#081004');
   const branches: THREE.InstancedMesh[] = [];
   for (const [bx, by, bz, spread, count] of [
-    [0.75, 0.95, 0.55, 0.35, 160],
-    [-0.9, 1.05, -0.6, 0.45, 180],
+    [0.75, 0.95, 0.55, 0.35, 320],
   ] as const) {
-    const mesh = new THREE.InstancedMesh(new THREE.PlaneGeometry(0.07, 0.07), leafMat, count);
+    const mesh = new THREE.InstancedMesh(new THREE.PlaneGeometry(0.05, 0.05), leafMat, count);
     const m = new THREE.Matrix4(), q = new THREE.Quaternion(), e = new THREE.Euler(), p = new THREE.Vector3(), s = new THREE.Vector3();
     const col = new THREE.Color(), leaf = new THREE.Color(season.foliage.leaf);
     for (let i = 0; i < count; i++) {
@@ -174,12 +146,52 @@ export function buildGarden(season: Season, _canopy: Canopy['uniforms'], basin: 
       q.setFromEuler(e.set(-1.2 + rand() * 0.8, rand() * 6.28, (rand() - 0.5) * 0.8));
       s.setScalar(0.7 + rand() * 0.6);
       mesh.setMatrixAt(i, m.compose(p, q, s));
-      col.copy(leaf).multiplyScalar(1.1 + rand() * 0.8);
+      // leaves vary: some catch the light, most are deeper green; a few already turning
+      col.copy(leaf).multiplyScalar(0.6 + rand() * 0.9);
+      if (rand() < 0.04) col.set('#b8761c');
       mesh.setColorAt(i, col);
     }
     mesh.castShadow = true;
     branches.push(mesh);
     root.add(mesh);
+  }
+
+  // ---- trees behind (out of focus they give the backdrop real depth), and a stone lantern
+  {
+    const bark = new THREE.MeshStandardMaterial({ color: '#5a4b3a', roughness: 0.95 });
+    for (const [x, z, r] of [[-1.7, -2.2, 0.09], [-0.6, -2.8, 0.13], [0.5, -2.4, 0.07], [1.4, -2.9, 0.12], [2.1, -1.9, 0.08], [-2.4, -1.4, 0.1], [0.05, -3.6, 0.16]] as const) {
+      const g2 = new THREE.CylinderGeometry(r * 0.75, r, 4, 12, 4);
+      const pos = g2.getAttribute('position') as THREE.BufferAttribute;
+      for (let i = 0; i < pos.count; i++) pos.setX(i, pos.getX(i) + Math.sin(pos.getY(i) * 1.3 + x) * 0.06);
+      g2.computeVertexNormals();
+      const t = new THREE.Mesh(g2, bark);
+      t.position.set(x, 2, z);
+      t.castShadow = t.receiveShadow = true;
+      root.add(t);
+    }
+    const stoneMat = mossyRockMaterial(season, 77);
+    const lantern = new THREE.Group();
+    const part = (geo: THREE.BufferGeometry, y: number, mat: THREE.Material = stoneMat) => {
+      const m = new THREE.Mesh(geo, mat);
+      m.position.y = y;
+      m.castShadow = m.receiveShadow = true;
+      lantern.add(m);
+      return m;
+    };
+    part(new THREE.CylinderGeometry(0.13, 0.16, 0.08, 6), 0.04);
+    part(new THREE.CylinderGeometry(0.05, 0.06, 0.4, 12), 0.28);
+    part(new THREE.CylinderGeometry(0.14, 0.1, 0.06, 6), 0.51);
+    // the fire box, with a warm glow in its windows
+    const glow = new THREE.MeshStandardMaterial({ color: '#2a2016', emissive: new THREE.Color('#ffb060'), emissiveIntensity: 1.6 });
+    part(new THREE.BoxGeometry(0.17, 0.17, 0.17), 0.63);
+    part(new THREE.BoxGeometry(0.1, 0.1, 0.175), 0.63, glow);
+    part(new THREE.BoxGeometry(0.175, 0.1, 0.1), 0.63, glow);
+    const roof = part(new THREE.ConeGeometry(0.26, 0.14, 6), 0.78);
+    roof.rotation.y = Math.PI / 6;
+    part(new THREE.SphereGeometry(0.04, 12, 8), 0.87);
+    lantern.position.set(-1.15, 0, -0.95);
+    lantern.rotation.y = 0.4;
+    root.add(lantern);
   }
 
   // ---- fallen leaves: a few floating on the basin, some on the gravel

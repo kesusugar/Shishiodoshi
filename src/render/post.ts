@@ -8,7 +8,7 @@ import * as THREE from 'three';
  * a golden-angle spiral. A sample only spreads over pixels its own blur circle reaches, so a sharp
  * foreground is not smeared by the background behind it.
  */
-const TAPS = 40;
+const TAPS = 48;
 
 export class Post {
   private rt: THREE.WebGLRenderTarget;
@@ -17,8 +17,8 @@ export class Post {
   private readonly quadCam = new THREE.OrthographicCamera(-1, 1, 1, -1, 0, 1);
   private readonly mat: THREE.ShaderMaterial;
   /** Lens: blur-circle size per dioptre (fraction of the screen height), and its largest size. */
-  aperture = 0.012;
-  maxBlur = 0.012;
+  aperture = 0.02;
+  maxBlur = 0.018;
   /** Fraction of the full resolution the scene is drawn at (adapted to keep 60 fps). */
   scale = 1;
   private cssW = 1;

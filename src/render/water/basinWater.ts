@@ -138,7 +138,7 @@ export class BasinWater {
       uCaus: { value: null },
       uStone: { value: spec.stone },
       uCenter: { value: spec.center.clone() },
-      uAmb: { value: new THREE.Vector3(0.75, 0.85, 0.85) },
+      uAmb: { value: new THREE.Vector3(0.9, 1.0, 1.0) },
       uGlow: { value: new THREE.Vector3(0.02, 0.085, 0.1) },
     };
 

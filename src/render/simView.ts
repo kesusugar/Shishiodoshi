@@ -63,6 +63,11 @@ export class SimView {
       const c = Math.cos(st.angle), s = Math.sin(st.angle);
       const px = land.x - cfg.pivot.x, py = land.y - cfg.pivot.y;
       hit = { x: px * c + py * s, z: 0 };
+      // water striking water in the tube throws up a few drops
+      this.splashAcc += 14 * dt;
+      const n = Math.floor(this.splashAcc);
+      this.splashAcc -= n;
+      this.splash.emit(this.tmp.set(land.x, land.y, 0), n, [0.15, 0.45], [0.0005, 0.0015]);
     } else if (land.target === 'basin') {
       // a steady stream into the basin: a small crater, jittering
       for (let i = 0; i < 2; i++) {

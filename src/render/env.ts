@@ -51,7 +51,7 @@ vec3 envProcedural(vec3 d) {
   vec3 sky = uSkyCol * (1.0 + 2.5 * pow(max(dot(d, uSunDir), 0.0), 16.0));
   vec3 c = mix(sky, foliage, leaves);
   // bokeh: sunlight glinting through the leaves, bigger and warmer toward the sun
-  float bk = 0.2 * envBokeh(p, 5.0, 0.0) + 0.25 * envBokeh(p, 9.0, 11.0);
+  float bk = 0.12 * envBokeh(p, 5.0, 0.0) + 0.15 * envBokeh(p, 9.0, 11.0);
   c += uLeafLit * bk * leaves * (0.45 + 1.4 * sunward) * smoothstep(-0.25, 0.1, el);
   // below the horizon: the garden floor, mossy and shaded
   float g = smoothstep(0.08, -0.35, el);

@@ -6,6 +6,7 @@ import { defaultConfig, kakei as kakeiCfg, type SimConfig } from '../sim/config'
 import { basinSpec, buildBasin } from './basin';
 import { buildCulm, type CulmSpec } from './bamboo';
 import { mulberry32 } from './random';
+import { mossyRockMaterial } from './rockMaterial';
 import type { Season } from './seasons';
 
 /**
@@ -105,7 +106,8 @@ export function buildShishiodoshi(season: Season, env: EnvUniforms, canopy: Cano
   // Striker stone under the back end (the tube's back rests on it while filling)
   const backEnd = new THREE.Vector3(-tubeSpec.back, -tubeSpec.radius, 0).applyAxisAngle(new THREE.Vector3(0, 0, 1), layout.restAngle).add(layout.pivot);
   const strikerH = backEnd.y;
-  const striker = new THREE.Mesh(rockGeometry(rand, 0.12, strikerH, 0.11), basinMesh.material);
+  // a rounded, moss-topped boulder (ref3)
+  const striker = new THREE.Mesh(rockGeometry(rand, 0.17, strikerH, 0.15), mossyRockMaterial(season, 66));
   striker.position.set(backEnd.x + 0.01, 0, 0);
   striker.castShadow = striker.receiveShadow = true;
   root.add(striker);
