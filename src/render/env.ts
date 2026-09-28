@@ -40,7 +40,7 @@ vec3 envProcedural(vec3 d) {
   float az = atan(d.z, d.x), el = asin(clamp(d.y, -1.0, 1.0));
   vec2 p = vec2(az * 2.2, el * 3.0);
   // how much foliage fills this direction (the canopy thins toward the zenith)
-  float leaves = smoothstep(0.35, 0.65, envFbm(p * 1.3) + 0.55 - 0.45 * smoothstep(0.35, 1.3, el));
+  float leaves = smoothstep(0.3, 0.6, envFbm(p * 1.3) + 0.7 - 0.35 * smoothstep(0.5, 1.4, el));
   float sunward = pow(max(dot(d, uSunDir), 0.0), 2.0);
   float lit = envFbm(p * 2.1 + 5.0);
   vec3 foliage = mix(uShadeCol, uLeafCol, smoothstep(0.3, 0.7, lit));
@@ -51,7 +51,7 @@ vec3 envProcedural(vec3 d) {
   vec3 sky = uSkyCol * (1.0 + 2.5 * pow(max(dot(d, uSunDir), 0.0), 16.0));
   vec3 c = mix(sky, foliage, leaves);
   // bokeh: sunlight glinting through the leaves, bigger and warmer toward the sun
-  float bk = 0.8 * envBokeh(p, 4.0, 0.0) + 0.6 * envBokeh(p, 7.5, 11.0);
+  float bk = 0.2 * envBokeh(p, 5.0, 0.0) + 0.25 * envBokeh(p, 9.0, 11.0);
   c += uLeafLit * bk * leaves * (0.45 + 1.4 * sunward) * smoothstep(-0.25, 0.1, el);
   // below the horizon: the garden floor, mossy and shaded
   float g = smoothstep(0.08, -0.35, el);
@@ -79,9 +79,9 @@ export function envUniforms(season: Season) {
   return {
     uSunDir: { value: sunDir },
     uSunCol: { value: lin(season.sun.color, season.sun.intensity) },
-    uLeafCol: { value: lin(season.foliage.leaf, 0.9) },
-    uLeafLit: { value: lin(season.foliage.leafLit, 1.4) },
-    uShadeCol: { value: lin(season.foliage.shade, 0.7) },
+    uLeafCol: { value: lin(season.foliage.leaf, 0.6) },
+    uLeafLit: { value: lin(season.foliage.leafLit, 1.1) },
+    uShadeCol: { value: lin(season.foliage.shade, 0.5) },
     uSkyCol: { value: lin(season.sky.top, 1.2) },
     uEnvCube: { value: null as THREE.CubeTexture | null },
   };

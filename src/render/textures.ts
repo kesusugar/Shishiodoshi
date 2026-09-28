@@ -169,3 +169,26 @@ export function mossyGround(seed: number): SurfaceMaps {
     o.r = 0.95;
   });
 }
+
+/**
+ * Dark volcanic stone (andesite) as in the ideal reference: charcoal grey with pale and dark
+ * speckles, lighter weathered patches, and roughness that varies (wet hollows are glossier).
+ */
+export function andesite(seed: number): SurfaceMaps {
+  const n = new Noise2(seed);
+  const base = hex('#45443f'), light = hex('#7d7a71'), dark = hex('#1e1e1c'), lichen = hex('#8e9078');
+  return makeMaps(512, 512, (u, v, o) => {
+    const big = n.fbm(u * 4, v * 4, 5, 4, 4);
+    const speck = n.value(u * 260, v * 260, 260, 260);
+    const speck2 = n.value(u * 170 + 30, v * 170, 170, 170);
+    const pit = n.fbm(u * 40, v * 40, 3, 40, 40);
+    const weather = n.fbm(u * 7 + 11, v * 7, 4, 7, 7);
+    let c = mix(dark, base, 0.4 + 0.6 * big);
+    c = mix(c, light, smooth(0.7, 0.85, speck) * 0.8);
+    c = mix(c, dark, smooth(0.75, 0.9, speck2) * 0.7);
+    c = mix(c, lichen, smooth(0.62, 0.8, weather) * 0.35);
+    o.c = c;
+    o.b = 0.5 + 0.3 * (big - 0.5) + 0.25 * (pit - 0.5) + 0.1 * (speck - 0.5);
+    o.r = 0.35 + 0.45 * smooth(0.3, 0.7, pit) + 0.15 * weather;
+  });
+}

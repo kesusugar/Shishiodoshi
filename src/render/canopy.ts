@@ -38,7 +38,7 @@ export class Canopy {
     // clusters of leaves, with about half the sky showing through
     g.fillStyle = '#000';
     const clusters = Array.from({ length: 70 }, () => ({ x: rand() * S, y: rand() * S, r: 60 + rand() * 140 }));
-    for (let i = 0; i < 5200; i++) {
+    for (let i = 0; i < 3200; i++) {
       const c = clusters[Math.floor(rand() * clusters.length)];
       const a = rand() * Math.PI * 2, d = Math.sqrt(rand()) * c.r;
       const x = c.x + Math.cos(a) * d, y = c.y + Math.sin(a) * d;

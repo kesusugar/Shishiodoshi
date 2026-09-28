@@ -7,7 +7,7 @@ import type { Season } from './seasons';
  * mouth and the basin's water (ref2); `wide` shows the arrangement in its garden.
  */
 export const cameraPresets = {
-  main: { position: new THREE.Vector3(0.02, 0.82, 1.3), target: new THREE.Vector3(0.02, 0.46, 0.0), fov: 40 },
+  main: { position: new THREE.Vector3(0.32, 0.72, 1.1), target: new THREE.Vector3(0.0, 0.5, -0.05), fov: 44 },
   close: { position: new THREE.Vector3(0.34, 0.74, 0.7), target: new THREE.Vector3(0.07, 0.44, 0.0), fov: 42 },
   mouth: { position: new THREE.Vector3(0.22, 0.8, 0.36), target: new THREE.Vector3(0.0, 0.66, 0.0), fov: 40 },
   wide: { position: new THREE.Vector3(0.1, 1.1, 1.9), target: new THREE.Vector3(0.0, 0.5, 0.0), fov: 40 },

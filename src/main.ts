@@ -9,6 +9,7 @@ import { Canopy } from './render/canopy';
 import { Post } from './render/post';
 import { BasinWater } from './render/water/basinWater';
 import { SimView } from './render/simView';
+import { buildGarden } from './scene/garden';
 import { buildShishiodoshi } from './scene/shishiodoshi';
 import { defaultSeason } from './scene/seasons';
 import { buildStage, cameraPresets, type CameraPreset } from './scene/stage';
@@ -60,6 +61,8 @@ const canopy = new Canopy();
 if (!off.has('canopy')) scene.add(canopy.mesh);
 const world = buildShishiodoshi(season, stage.env, canopy.uniforms);
 scene.add(world.root);
+const garden = buildGarden(season, canopy.uniforms, { center: world.basin.center, bowlRadius: world.basin.bowlRadius, level: world.basin.waterLevel });
+if (!off.has('garden')) scene.add(garden.root);
 const water = new BasinWater(renderer, { ...world.basin, wind: season.wind }, stage.env, canopy.uniforms);
 if (!off.has('water')) scene.add(water.mesh);
 
@@ -146,6 +149,7 @@ renderer.setAnimationLoop((timestamp) => {
   pending.length = 0;
   simView.update(stepper.alpha, dt);
   canopy.update(sim.state.time, season.wind);
+  garden.update(sim.state.time, season.wind);
   if (!off.has('water')) water.update(dt);
   controls.update();
   if (off.has('dof')) renderer.render(scene, camera);

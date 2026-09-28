@@ -1,6 +1,6 @@
 import * as THREE from 'three';
 import { Noise2 } from '../render/noise';
-import { granite } from '../render/textures';
+import { andesite } from '../render/textures';
 import type { Season } from './seasons';
 
 /**
@@ -94,12 +94,12 @@ export function buildBasin(season: Season): THREE.Mesh {
     nrm.setXYZ(b, v.x, v.y, v.z);
   }
 
-  const stone = granite(11);
+  const stone = andesite(11);
   const mossMaps = mossTexture(12);
   const mat = new THREE.MeshStandardMaterial({
     map: stone.color,
     bumpMap: stone.bump,
-    bumpScale: 2,
+    bumpScale: 3,
     roughnessMap: stone.rough,
     roughness: 1,
   });

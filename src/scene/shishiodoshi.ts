@@ -198,7 +198,7 @@ function roundBox(g: THREE.BufferGeometry, r: number): void {
  * A rounded natural stone standing on the ground: a squashed sphere with lumps, its base flattened
  * at y = 0 and its top reaching `height`, a little flattened where the tube strikes it.
  */
-function rockGeometry(rand: () => number, rx: number, height: number, rz: number): THREE.BufferGeometry {
+export function rockGeometry(rand: () => number, rx: number, height: number, rz: number): THREE.BufferGeometry {
   const g = new THREE.IcosahedronGeometry(1, 5);
   const pos = g.getAttribute('position') as THREE.BufferAttribute;
   const waves = Array.from({ length: 7 }, () => ({
