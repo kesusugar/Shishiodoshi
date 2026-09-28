@@ -23,7 +23,7 @@ let failed = false;
 try {
   for (const view of views) {
     const probe = await app.load(`view=${view}${args.query ? `&${args.query}` : ""}`);
-    await app.frames(10); // let shadows and damping settle
+    await app.frames(Number(args.frames ?? 10)); // let shadows and damping settle (more to let the water run)
     const file = path.join(outDir, `shot-${view}${args.tag ? `-${args.tag}` : ""}.png`);
     await app.page.screenshot({ path: file });
     console.log(`${view}: ${path.relative(process.cwd(), file)}  (GPU: ${probe.gpu})`);

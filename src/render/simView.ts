@@ -31,6 +31,7 @@ export class SimView {
     const { spout, velocity, flow } = cfg.inflow;
     this.kakeiStream.set(new THREE.Vector3(spout.x, spout.y, 0), new THREE.Vector3(velocity.x, velocity.y, 0), flow, 0, 0);
     this.pour = new Stream(env, 0.8);
+    this.pour.uFoam.value = 0.55;
     this.tubeWater = new TubeWater(cfg.tube, env, fleshColor);
     world.tube.add(this.tubeWater.mesh);
     this.prevAngle = sim.state.angle;

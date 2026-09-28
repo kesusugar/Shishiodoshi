@@ -107,8 +107,17 @@ export class BasinWater {
         float nb = texture2D(heightmap, uv + vec2(0.0, cell.y)).r + texture2D(heightmap, uv - vec2(0.0, cell.y)).r
                  + texture2D(heightmap, uv + vec2(cell.x, 0.0)).r + texture2D(heightmap, uv - vec2(cell.x, 0.0)).r;
         float h = (nb * 0.5 - c.g) * 0.996;
-        for (int i = 0; i < 8; i++) { vec2 q = (p - uDrops[i].xy) / uDrops[i].z; h += uDrops[i].w * exp(-dot(q, q)); }
-        gl_FragColor = vec4(h, c.r, 0.0, 1.0);
+        // foam (b): made where water plunges in, spreading a little and fading over about a second
+        float fb = texture2D(heightmap, uv + vec2(0.0, cell.y)).b + texture2D(heightmap, uv - vec2(0.0, cell.y)).b
+                 + texture2D(heightmap, uv + vec2(cell.x, 0.0)).b + texture2D(heightmap, uv - vec2(cell.x, 0.0)).b;
+        float foam = mix(c.b, fb * 0.25, 0.15) * 0.994;
+        for (int i = 0; i < 8; i++) {
+          vec2 q = (p - uDrops[i].xy) / uDrops[i].z;
+          float k = exp(-dot(q, q));
+          h += uDrops[i].w * k;
+          foam += max(-uDrops[i].w, 0.0) * 0.08 * k;
+        }
+        gl_FragColor = vec4(h, c.r, min(foam, 1.5), 1.0);
       }`,
       this.gpu.createTexture(),
     );
@@ -155,7 +164,7 @@ export class BasinWater {
         float h = texture2D(uSim, uv).r;
         float hx = texture2D(uSim, uv + vec2(e.x, 0.0)).r - texture2D(uSim, uv - vec2(e.x, 0.0)).r;
         float hz = texture2D(uSim, uv + vec2(0.0, e.y)).r - texture2D(uSim, uv - vec2(0.0, e.y)).r;
-        gl_FragColor = vec4(w + 0.001 * vec3(h, hx * ${f(SIM / (4 * RB))}, hz * ${f(SIM / (4 * RB))}), 1.0);
+        gl_FragColor = vec4(w + 0.001 * vec3(h, hx * ${f(SIM / (4 * RB))}, hz * ${f(SIM / (4 * RB))}), texture2D(uSim, uv).b);
       }`,
       { uTime: this.U.uTime, uW: this.U.uW, uA: this.U.uA, uSim: this.U.uSim },
     );
@@ -168,6 +177,7 @@ export class BasinWater {
       const vec3 ABSORB = vec3(${ABSORB.map(f).join(', ')});
       // height above LEVEL (m) and slope at a bowl-local point
       vec3 wave(vec2 p) { return textureLod(uSurf, p / (2.0 * RB) + 0.5, 0.0).xyz; }
+      float foamAt(vec2 p) { return textureLod(uSurf, p / (2.0 * RB) + 0.5, 0.0).w; }
       vec3 normalOf(vec3 w) { return normalize(vec3(-w.y, 1.0, -w.z)); }
       float fresnel(float c) { return 0.02 + 0.98 * pow(1.0 - clamp(c, 0.0, 1.0), 5.0); }
       // distance along d from p (inside the bowl) to its cylindrical wall
@@ -298,6 +308,15 @@ export class BasinWater {
             vec3 col = F * refl + (1.0 - F) * water(lp, refract(d, n, 1.0 / IOR));
             // the meniscus: a faint bright line where the water meets the stone
             col += uAmb * 0.08 * smoothstep(RB - 0.004, RB, r);
+            // foam: a froth of tiny bubbles, broken up into patches, lit by the sky and the sun
+            float fm = foamAt(lp.xz);
+            if (fm > 0.01) {
+              vec2 fq = lp.xz * 900.0;
+              float cells = fract(sin(dot(floor(fq), vec2(12.9898, 78.233))) * 43758.5453);
+              float froth = smoothstep(0.1, 0.9, fm * (0.6 + 0.8 * cells));
+              vec3 white = vec3(0.85, 0.9, 0.9) * (uAmb * 0.35 + uSunCol * 0.12 * canopyLight(vPos, uSunDir));
+              col = mix(col, white, froth * 0.85);
+            }
             gl_FragColor = vec4(col, 1.0);
             ${OUT}
           }`,

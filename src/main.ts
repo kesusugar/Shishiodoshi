@@ -67,6 +67,7 @@ if (!off.has('water')) scene.add(water.mesh);
 const sim = new ShishiodoshiSim();
 const simView = new SimView(sim, world, water, stage.env, new THREE.Color('#d9c89a'));
 probe.inspect.sim = sim;
+probe.inspect.water = water;
 // offline sound for tools/audio.mjs: WAV bytes as base64
 probe.inspect.renderAudio = async (seconds: number, start: number) => {
   const { renderOffline } = await import('./audio/offline');

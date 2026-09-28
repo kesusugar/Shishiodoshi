@@ -16,6 +16,8 @@ export class Stream {
   readonly mesh: THREE.Mesh;
   private readonly uTime = { value: 0 };
   private readonly uEndY = { value: -1 };
+  /** How much air the water carries (white streaks): 0 for the clear kakei stream, more for the pour. */
+  readonly uFoam = { value: 0 };
   private readonly pos: Float32Array;
   private readonly nrm: Float32Array;
   private readonly along: Float32Array;
@@ -25,7 +27,7 @@ export class Stream {
     const n = (SEGS + 1) * (AROUND + 1);
     this.pos = new Float32Array(n * 3);
     this.nrm = new Float32Array(n * 3);
-    this.along = new Float32Array(n * 2);
+    this.along = new Float32Array(n * 3);
     const idx: number[] = [];
     for (let i = 0; i < SEGS; i++) {
       for (let j = 0; j < AROUND; j++) {
@@ -36,18 +38,21 @@ export class Stream {
     const g = new THREE.BufferGeometry();
     g.setAttribute('position', new THREE.BufferAttribute(this.pos, 3).setUsage(THREE.DynamicDrawUsage));
     g.setAttribute('normal', new THREE.BufferAttribute(this.nrm, 3).setUsage(THREE.DynamicDrawUsage));
-    g.setAttribute('aAlong', new THREE.BufferAttribute(this.along, 2).setUsage(THREE.DynamicDrawUsage));
+    g.setAttribute('aAlong', new THREE.BufferAttribute(this.along, 3).setUsage(THREE.DynamicDrawUsage));
     g.setIndex(idx);
     this.geo = g;
 
-    // A rod of water: the rim shows the garden reflected (Fresnel), the middle the garden seen
-    // through it, bent and faintly tinted; the sun glints off it. Cheap enough to draw directly.
+    // A rod of clear water, blended over what is behind it: its rim reflects the garden (Fresnel),
+    // the sun glints off it, and in a pour, streaks of entrained air ride along with the water.
     const mat = new THREE.ShaderMaterial({
-      uniforms: { ...env, uTime: this.uTime, uEndY: this.uEndY },
+      uniforms: { ...env, uTime: this.uTime, uEndY: this.uEndY, uFoam: this.uFoam },
+      transparent: true,
+      depthWrite: true,
       vertexShader: /* glsl */ `
-        attribute vec2 aAlong;   // time since leaving the lip (s), radius (m)
+        attribute vec3 aAlong;   // time since leaving the lip (s), radius (m), around (0..1)
         uniform float uTime;
         varying vec3 vPos, vNrm;
+        varying vec2 vFlow;      // where this bit of water left the lip (time), and around the stream
         void main() {
           // travelling bulges: the water that left the lip at time (uTime - t) carries its own wobble
           float born = uTime - aAlong.x;
@@ -56,13 +61,20 @@ export class Stream {
           vec3 p = position + normal * aAlong.y * bulge;
           vPos = (modelMatrix * vec4(p, 1.0)).xyz;
           vNrm = normalize(mat3(modelMatrix) * normal);
+          vFlow = vec2(born, aAlong.z);
           gl_Position = projectionMatrix * viewMatrix * vec4(vPos, 1.0);
         }`,
       fragmentShader:
         ENV_GLSL +
         /* glsl */ `
-        uniform float uEndY;
+        uniform float uEndY, uFoam;
         varying vec3 vPos, vNrm;
+        varying vec2 vFlow;
+        float h21(vec2 p) { p = fract(p * vec2(234.34, 435.345)); p += dot(p, p + 34.23); return fract(p.x * p.y); }
+        float n21(vec2 p) {
+          vec2 i = floor(p), f = fract(p), u = f * f * (3.0 - 2.0 * f);
+          return mix(mix(h21(i), h21(i + vec2(1, 0)), u.x), mix(h21(i + vec2(0, 1)), h21(i + vec2(1, 1)), u.x), u.y);
+        }
         void main() {
           if (vPos.y < uEndY) discard;   // it has landed (in the tube, on the bamboo, in the basin)
           vec3 n = normalize(vNrm), v = normalize(vPos - cameraPosition);
@@ -72,9 +84,15 @@ export class Stream {
           vec3 r = reflect(v, n);
           vec3 refl = envColor(r) + uSunCol * pow(max(dot(r, uSunDir), 0.0), 400.0) * 6.0;
           // through the rod: the view is bent strongly toward the axis
-          vec3 t = normalize(v - n * (1.0 - c) * 1.4);
-          vec3 thru = envColor(t) * vec3(0.9, 0.97, 1.0) + uSunCol * 0.02;
-          gl_FragColor = vec4(mix(thru, refl, F), 1.0);
+          // entrained air: streaks that move with the water (they are fixed to where it left the lip)
+          float streak = n21(vec2(vFlow.x * 60.0, vFlow.y * 7.0)) * n21(vec2(vFlow.x * 23.0 + 3.1, vFlow.y * 13.0));
+          float foam = uFoam * smoothstep(0.15, 0.45, streak);
+          vec3 white = vec3(0.75, 0.8, 0.8) * (0.35 + 0.25 * max(dot(n, uSunDir), 0.0)) + uSunCol * 0.04;
+          // what is left of the view straight through: most of it, a little tinted
+          float through = (1.0 - F) * (1.0 - foam) * 0.82;
+          float a = 1.0 - through;
+          vec3 col = refl * F + white * foam + vec3(0.01, 0.025, 0.028) * (1.0 - F);
+          gl_FragColor = vec4(col / max(a, 1e-3), a);
           #include <tonemapping_fragment>
           #include <colorspace_fragment>
         }`,
@@ -118,8 +136,9 @@ export class Stream {
         this.nrm[k * 3] = nn.x;
         this.nrm[k * 3 + 1] = nn.y;
         this.nrm[k * 3 + 2] = nn.z;
-        this.along[k * 2] = t;
-        this.along[k * 2 + 1] = r;
+        this.along[k * 3] = t;
+        this.along[k * 3 + 1] = r;
+        this.along[k * 3 + 2] = j / AROUND;
       }
     }
     for (const name of ['position', 'normal', 'aAlong']) this.geo.getAttribute(name).needsUpdate = true;
