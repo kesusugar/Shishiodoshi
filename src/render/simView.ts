@@ -5,6 +5,7 @@ import type { ShishiodoshiScene } from '../scene/shishiodoshi';
 import type { EnvUniforms } from './env';
 import type { BasinWater } from './water/basinWater';
 import { FloatingLeaves } from './water/floatingLeaves';
+import type { Overflow } from './water/overflow';
 import { Splash } from './water/splash';
 import { Stream } from './water/stream';
 import { TubeWater } from './water/tubeWater';
@@ -19,6 +20,7 @@ export class SimView {
   readonly tubeWater: TubeWater;
   readonly splash: Splash;
   floating: FloatingLeaves | null = null;
+  overflow: Overflow | null = null;
   private splashAcc = 0;
   private prevAngle: number;
   private readonly rand = mulberry32(9);
@@ -84,6 +86,7 @@ export class SimView {
       this.splashAcc -= n;
       this.splash.emit(this.tmp.set(land.x, land.y, 0), n, [0.2, 0.7], [0.0004, 0.0012]);
       this.floating?.push(this.tmp.set(land.x, land.y, 0), 0.4, dt);
+      this.overflow?.feed(cfg.inflow.flow, dt);
     }
     this.tubeWater.update(out.surface, hit, st.time);
 
@@ -115,12 +118,14 @@ export class SimView {
         this.splashAcc -= n;
         this.splash.emit(this.tmp.set(lip.x + vel.x * t, cfg.basinLevel, 0), n, [0.4, 1.4], [0.0008, 0.003], new THREE.Vector3(vel.x * 0.3, 0, 0));
         this.floating?.push(this.tmp.set(lip.x + vel.x * t, cfg.basinLevel, 0), 6 * k, dt);
+        this.overflow?.feed(sp.flow, dt);
       }
     } else {
       this.pour.set(this.tmp, this.tmp, 0, 0, 0);
     }
     this.splash.update(dt);
     this.floating?.update(dt, 0.25);
+    this.overflow?.update(dt);
   }
 
   private fallTime(y0: number, vy: number, y1: number): number {

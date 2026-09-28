@@ -108,19 +108,24 @@ export function buildBasin(season: Season): THREE.Mesh {
     sh.uniforms.uMossMap = { value: mossMaps };
     sh.uniforms.uMossCol = { value: mossCol };
     sh.vertexShader = sh.vertexShader
-      .replace('#include <common>', '#include <common>\nattribute float aMoss;\nvarying float vMoss;')
-      .replace('#include <begin_vertex>', '#include <begin_vertex>\nvMoss = aMoss;');
+      .replace('#include <common>', '#include <common>\nattribute float aMoss;\nvarying float vMoss;\nvarying vec3 vBasinPos;')
+      .replace('#include <begin_vertex>', '#include <begin_vertex>\nvMoss = aMoss;\nvBasinPos = position;');
     sh.fragmentShader = sh.fragmentShader
-      .replace('#include <common>', '#include <common>\nvarying float vMoss;\nuniform sampler2D uMossMap;\nuniform vec3 uMossCol;')
+      .replace('#include <common>', '#include <common>\nvarying float vMoss;\nvarying vec3 vBasinPos;\nuniform sampler2D uMossMap;\nuniform vec3 uMossCol;')
       .replace(
         '#include <map_fragment>',
         `#include <map_fragment>
         vec4 mossT = texture2D(uMossMap, vMapUv * 3.0);
         vec4 mossF = texture2D(uMossMap, vMapUv * 11.0);
         float mossK = smoothstep(0.25, 0.5, vMoss + (mossT.a - 0.5) * 0.9 + (mossF.g - 0.5) * 0.35);
-        diffuseColor.rgb = mix(diffuseColor.rgb, uMossCol * (0.15 + 0.8 * mossT.rgb) * (0.35 + 1.1 * mossF.g), mossK);`,
+        diffuseColor.rgb = mix(diffuseColor.rgb, uMossCol * (0.15 + 0.8 * mossT.rgb) * (0.35 + 1.1 * mossF.g), mossK);
+        // wet stone: the rim and the inside above the water stay wet from splashes (and the wet
+        // edge is uneven); wet stone is darker and glossy
+        float wet = smoothstep(${(H - 0.07).toFixed(3)}, ${(H - 0.01).toFixed(3)}, vBasinPos.y + 0.03 * (mossT.a - 0.5)) * (1.0 - 0.6 * mossK);
+        wet = max(wet, smoothstep(${(RB + 0.04).toFixed(3)}, ${(RB + 0.005).toFixed(3)}, length(vBasinPos.xz)));
+        diffuseColor.rgb *= 1.0 - 0.35 * wet;`,
       )
-      .replace('#include <roughnessmap_fragment>', '#include <roughnessmap_fragment>\nroughnessFactor = mix(roughnessFactor, 1.0, mossK);')
+      .replace('#include <roughnessmap_fragment>', '#include <roughnessmap_fragment>\nroughnessFactor = mix(roughnessFactor, 1.0, mossK);\nroughnessFactor = mix(roughnessFactor, 0.12, wet);')
       // moss is a mat of tiny stems: its own light-catching bumps replace the stone's
       .replace(
         '#include <normal_fragment_maps>',

@@ -33,6 +33,8 @@ export interface ShishiodoshiScene {
   spout: THREE.Vector3;
   /** Water surface of the basin, world. */
   basin: { center: THREE.Vector3; bowlRadius: number; floorY: number; waterLevel: number; rimY: number; stone: THREE.Texture };
+  /** The basin's stone (for fitting things to its surface). */
+  basinMesh: THREE.Mesh;
 }
 
 export function buildShishiodoshi(season: Season, env: EnvUniforms, canopy: Canopy['uniforms']): ShishiodoshiScene {
@@ -171,6 +173,7 @@ export function buildShishiodoshi(season: Season, env: EnvUniforms, canopy: Cano
     tube,
     tubeSpec,
     spout,
+    basinMesh,
     basin: {
       center: layout.basinCenter.clone(),
       bowlRadius: basinSpec.bowlRadius,

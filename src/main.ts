@@ -9,6 +9,8 @@ import { Canopy } from './render/canopy';
 import { Post } from './render/post';
 import { BasinWater } from './render/water/basinWater';
 import { SimView } from './render/simView';
+import { waterBeads } from './render/water/beads';
+import { Overflow } from './render/water/overflow';
 import { FloatingLeaves } from './render/water/floatingLeaves';
 import { buildGarden, FALLEN_COLOURS } from './scene/garden';
 import { buildShishiodoshi } from './scene/shishiodoshi';
@@ -94,6 +96,15 @@ simView.floating = new FloatingLeaves(
   [FALLEN_COLOURS[0], FALLEN_COLOURS[1], FALLEN_COLOURS[2]],
 );
 if (!off.has('garden')) scene.add(simView.floating.group);
+// the basin brims over at a low point of its rim, toward the front right
+simView.overflow = new Overflow(stage.env, world.basinMesh, world.basin.center, world.basin.rimY, 1.0);
+if (!off.has('water')) scene.add(simView.overflow.mesh);
+probe.inspect.overflow = simView.overflow;
+// beads of water on the wet bamboo, riding with the tube
+{
+  const t = sim.cfg.tube;
+  world.tube.add(waterBeads(stage.env, { radius: t.radius, from: 0.0, to: t.front - t.cut }, 260, 3));
+}
 
 const preset = cameraPresets[view] ?? cameraPresets.main;
 const camera = new THREE.PerspectiveCamera(preset.fov, 1, 0.01, 100);
