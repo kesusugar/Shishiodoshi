@@ -163,6 +163,18 @@ export class ShishiodoshiSim {
     };
   }
 
+  /**
+   * Fill the tube almost to its lip at once (the "tip it now" button): it then tips over within a
+   * moment. The water added is counted as inflow, so the bookkeeping still balances.
+   */
+  topUp(): void {
+    const phi = this.state.angle + this.state.alpha;
+    const capacity = this.hydro.shape(phi, this.hydro.lipLevel(phi)).volume;
+    const add = Math.max(0, capacity * 0.98 - this.state.volume);
+    this.state.volume += add;
+    this.state.totalIn += add;
+  }
+
   /** Length of the air column in the compartment (m): the water shortens it (for the knock's pitch). */
   airLength(): number {
     const t = this.cfg.tube;

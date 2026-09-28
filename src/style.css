@@ -65,3 +65,24 @@ body {
   background: #1a0e0e;
   white-space: pre-wrap;
 }
+
+#tip {
+  position: fixed;
+  left: 8px;
+  top: 8px;
+  padding: 6px 12px;
+  border: 1px solid rgb(255 255 255 / 0.35);
+  border-radius: 4px;
+  background: rgb(0 0 0 / 0.4);
+  color: #e8ecdf;
+  font: 13px system-ui, 'Segoe UI', 'Yu Gothic UI', sans-serif;
+  cursor: pointer;
+}
+
+#tip:hover {
+  background: rgb(0 0 0 / 0.6);
+}
+
+#tip[hidden] {
+  display: none;
+}

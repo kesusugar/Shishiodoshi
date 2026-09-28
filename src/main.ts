@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import { waitForStart } from './audio/startGate';
+import { SimGraph } from './debug/graph';
 import { gpuName, Hud } from './debug/hud';
 import { probe } from './debug/probe';
 import { Post } from './render/post';
@@ -10,6 +11,7 @@ import { buildShishiodoshi } from './scene/shishiodoshi';
 import { defaultSeason } from './scene/seasons';
 import { buildStage, cameraPresets, type CameraPreset } from './scene/stage';
 import { FixedStepper } from './sim/fixedStep';
+import type { SimEvent } from './sim/events';
 import { ShishiodoshiSim } from './sim/shishiodoshi';
 
 // URL options: ?view=main|close|mouth|wide picks a camera preset; ?capture hides the UI and skips the
@@ -61,6 +63,11 @@ if (!off.has('water')) scene.add(water.mesh);
 const sim = new ShishiodoshiSim();
 const simView = new SimView(sim, world, water, stage.env, new THREE.Color('#d9c89a'));
 probe.inspect.sim = sim;
+const graph = new SimGraph(document.body, params.has('debug'));
+// "tip it now" (PLAN.md 8章): fill the tube to its lip, so the moment comes without waiting
+const tipButton = document.querySelector<HTMLButtonElement>('#tip')!;
+tipButton.addEventListener('click', () => sim.topUp());
+if (capture) tipButton.hidden = true;
 if (!off.has('stream')) scene.add(simView.kakeiStream.mesh, simView.pour.mesh);
 
 const preset = cameraPresets[view] ?? cameraPresets.main;
@@ -94,12 +101,17 @@ resize();
 
 const stepper = new FixedStepper();
 const clock = new THREE.Timer();
+/** Events waiting for the sound engine (P2). */
+const pending: SimEvent[] = [];
 const step = (h: number) => {
   simView.beforeStep();
   sim.step(h);
+  const events = sim.drainEvents();
+  graph.record(sim, events.flatMap((e) => (e.type === 'strike' ? [e] : [])));
+  pending.push(...events);
 };
 for (let t = Number(params.get('t') ?? 0); t > 0; t -= 0.25) stepper.advance(Math.min(t, 0.25), step);
-sim.drainEvents();
+pending.length = 0;
 
 renderer.compile(scene, camera);
 renderer.setAnimationLoop((timestamp) => {
@@ -107,7 +119,7 @@ renderer.setAnimationLoop((timestamp) => {
   // a stalled tab (or the first frame after loading) must not dump seconds of forcing at once
   const dt = Math.min(clock.getDelta(), 0.1);
   stepper.advance(dt, step);
-  sim.drainEvents(); // the sound engine will consume these (P2)
+  pending.length = 0; // the sound engine will consume these (P2)
   simView.update(stepper.alpha, dt);
   if (!off.has('water')) water.update(dt);
   controls.update();
@@ -119,6 +131,7 @@ renderer.setAnimationLoop((timestamp) => {
 
   const st = sim.state;
   hud.frame(dt, `res ${(post.scale * 100).toFixed(0)}%  sim ${st.time.toFixed(1)} s  ${THREE.MathUtils.radToDeg(st.angle).toFixed(1)} deg  ${(st.volume * 1e6).toFixed(0)} mL`);
+  graph.draw(st.time);
   probe.frames++;
   probe.simTime = st.time;
   probe.fps = hud.currentFps;
