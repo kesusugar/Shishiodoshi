@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import { addGardenFog, type EnvUniforms } from '../render/env';
 import { mossyGround, weatheredWood } from '../render/textures';
+import { defaultConfig, kakei as kakeiCfg, type SimConfig } from '../sim/config';
 import { basinSpec, buildBasin } from './basin';
 import { buildCulm, type CulmSpec } from './bamboo';
 import { mulberry32 } from './random';
@@ -11,14 +12,14 @@ import type { Season } from './seasons';
  * the supply pipe (kakei) from a standing culm, and the stone basin. Metres, y up, ground at y = 0,
  * the basin centred at `basinCenter`, the tube swinging in the x-y plane.
  */
+const cfg: SimConfig = defaultConfig;
 export const layout = {
-  basinCenter: new THREE.Vector3(0.1, 0, 0),
-  pivot: new THREE.Vector3(-0.34, 0.58, 0),
-  /** Resting (filling) angle of the tube, mouth up. The simulation owns this from P1. */
-  restAngle: THREE.MathUtils.degToRad(16),
-  postX: 0.42,
-  kakeiY: 0.9,
-  kakeiTipX: 0.1,
+  basinCenter: new THREE.Vector3(cfg.basin.x, 0, 0),
+  pivot: new THREE.Vector3(cfg.pivot.x, cfg.pivot.y, 0),
+  restAngle: cfg.restAngle,
+  postX: kakeiCfg.postX,
+  kakeiY: kakeiCfg.y,
+  kakeiTipX: kakeiCfg.tipX,
 };
 
 export interface ShishiodoshiScene {
@@ -54,14 +55,15 @@ export function buildShishiodoshi(season: Season, env: EnvUniforms): Shishiodosh
   root.add(basinMesh);
 
   // The tube
+  const t = cfg.tube;
   const tubeSpec: CulmSpec = {
-    back: 0.26,
-    front: 0.46,
-    radius: 0.036,
-    wall: 0.006,
-    cut: 0.12,
-    nodes: [-0.248, -0.015, 0.2],
-    diaphragm: -0.011,
+    back: t.back,
+    front: t.front,
+    radius: t.radius,
+    wall: t.wall,
+    cut: t.cut,
+    nodes: t.nodes,
+    diaphragm: t.diaphragm,
     age: bamboo.age,
     fresh: bamboo.fresh,
     aged: bamboo.aged,
@@ -91,6 +93,13 @@ export function buildShishiodoshi(season: Season, env: EnvUniforms): Shishiodosh
   axle.position.copy(layout.pivot);
   axle.castShadow = true;
   root.add(axle);
+  // The crossbar just under the axle: the tube's belly comes down on it when it tips forward
+  const stopLocal = new THREE.Vector3(0.03, -t.radius, 0).applyAxisAngle(new THREE.Vector3(0, 0, 1), cfg.frontStopAngle);
+  const bar = new THREE.Mesh(new THREE.CylinderGeometry(0.009, 0.009, 0.16, 12), wood);
+  bar.rotation.x = Math.PI / 2;
+  bar.position.copy(layout.pivot).add(stopLocal).add(new THREE.Vector3(0, -0.009, 0));
+  bar.castShadow = bar.receiveShadow = true;
+  root.add(bar);
 
   // Striker stone under the back end (the tube's back rests on it while filling)
   const backEnd = new THREE.Vector3(-tubeSpec.back, -tubeSpec.radius, 0).applyAxisAngle(new THREE.Vector3(0, 0, 1), layout.restAngle).add(layout.pivot);
@@ -119,14 +128,14 @@ export function buildShishiodoshi(season: Season, env: EnvUniforms): Shishiodosh
   stand.position.set(layout.postX, 0, -0.01);
   root.add(stand);
 
-  const kakeiSlope = THREE.MathUtils.degToRad(4);
+  const kakeiSlope = kakeiCfg.slope;
   const kakeiLen = (layout.postX - layout.kakeiTipX) / Math.cos(kakeiSlope);
   const kakeiSpec: CulmSpec = {
     back: 0.02,
     front: kakeiLen,
-    radius: 0.019,
-    wall: 0.004,
-    cut: 0.05,
+    radius: kakeiCfg.radius,
+    wall: kakeiCfg.wall,
+    cut: kakeiCfg.cut,
     nodes: [kakeiLen * 0.45],
     diaphragm: -0.02,
     age: bamboo.age,

@@ -89,7 +89,7 @@ export const defaultConfig: SimConfig = {
     backPlug: 0.2,
   },
   restAngle: 16 * deg,
-  frontStopAngle: -38 * deg,
+  frontStopAngle: -30 * deg,
   contact: { stiffness: 400, restitution: 0.35, frontStiffness: 60, frontRestitution: 0.2 },
   friction: { viscous: 0.002, dry: 0.004 },
   inflow: {
@@ -100,6 +100,6 @@ export const defaultConfig: SimConfig = {
   },
   weirCd: 0.6,
   slosh: { omega: 4.8, zeta: 0.12, coupling: 0.4 },
-  basinLevel: 0.335,
+  basinLevel: 0.255,
   basin: { x: 0.1, radius: 0.19 },
 };

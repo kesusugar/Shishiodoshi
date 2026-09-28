@@ -10,10 +10,10 @@ import type { Season } from './seasons';
  */
 export const basinSpec = {
   outerRadius: 0.3,
-  height: 0.36,
+  height: 0.28,
   bowlRadius: 0.19,
-  floorY: 0.2,
-  waterLevel: 0.335,
+  floorY: 0.13,
+  waterLevel: 0.255,
 } as const;
 
 export function buildBasin(season: Season): THREE.Mesh {

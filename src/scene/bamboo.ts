@@ -99,7 +99,7 @@ export function buildCulm(spec: CulmSpec): THREE.Group {
     for (let j = 0; j < SEG_AROUND; j++) {
       for (let i = 0; i < ns; i++) {
         const a = j * row + i, b = a + 1, c2 = a + row, d = c2 + 1;
-        idx.push(a, c2, b, b, c2, d);
+        idx.push(a, b, c2, b, d, c2); // counter-clockwise seen from outside
       }
     }
     const g = new THREE.BufferGeometry();

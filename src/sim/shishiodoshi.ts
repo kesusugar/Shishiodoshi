@@ -98,7 +98,10 @@ export class ShishiodoshiSim {
         const r = this.hydro.r;
         const w = h < r ? 2 * Math.sqrt(h * (2 * r - h)) : 2 * r;
         spillFlow = Math.min(cfg.weirCd * (2 / 3) * Math.sqrt(2 * g) * w * Math.pow(h, 1.5), st.volume / dt);
-        speed = Math.sqrt(2 * g * h);
+        // the water leaving the lip has also slid down the tilted tube from its centroid to the lip
+        const lipX = this.hydro.lipPoint(phi).x;
+        const slide = Math.max(0, (lipX - this.shape.cx) * -Math.sin(st.angle));
+        speed = Math.sqrt(2 * g * (h + slide));
       }
     }
 

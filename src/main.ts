@@ -5,14 +5,16 @@ import { gpuName, Hud } from './debug/hud';
 import { probe } from './debug/probe';
 import { Post } from './render/post';
 import { BasinWater } from './render/water/basinWater';
-import { Stream } from './render/water/stream';
-import { boreFloorY, buildShishiodoshi } from './scene/shishiodoshi';
+import { SimView } from './render/simView';
+import { buildShishiodoshi } from './scene/shishiodoshi';
 import { defaultSeason } from './scene/seasons';
 import { buildStage, cameraPresets, type CameraPreset } from './scene/stage';
 import { FixedStepper } from './sim/fixedStep';
+import { ShishiodoshiSim } from './sim/shishiodoshi';
 
-// URL options: ?view=main|close|wide picks a camera preset; ?capture hides the UI and skips the
-// click-to-start screen (used by tools/ for screenshots and measurements).
+// URL options: ?view=main|close|mouth|wide picks a camera preset; ?capture hides the UI and skips the
+// click-to-start screen (used by tools/ for screenshots and measurements); ?t=20 fast-forwards the
+// simulation by 20 s before the first frame (to capture a given moment, e.g. mid-pour).
 const params = new URLSearchParams(location.search);
 const capture = params.has('capture');
 const view = (params.get('view') ?? 'main') as CameraPreset;
@@ -55,20 +57,11 @@ scene.add(world.root);
 const water = new BasinWater(renderer, { ...world.basin, wind: season.wind }, stage.env);
 if (!off.has('water')) scene.add(water.mesh);
 
-// The kakei's stream, falling into the tube's mouth. Flow and speed become simulation inputs in P1.
-const FLOW = 15e-6; // m^3/s
-const lipSpeed = 0.35; // m/s along the kakei
-const lipVel = new THREE.Vector3(-lipSpeed * Math.cos(0.07), -lipSpeed * Math.sin(0.07), 0);
-const lipR = Math.sqrt(FLOW / (Math.PI * lipSpeed));
-const streamStart = world.spout.clone().add(new THREE.Vector3(0, lipR, 0));
-world.tube.updateMatrixWorld();
-let landY = boreFloorY(world, streamStart.x);
-for (let i = 0; i < 3; i++) {
-  const t = Math.sqrt((2 * Math.max(streamStart.y - landY, 0.01)) / 9.81);
-  landY = boreFloorY(world, streamStart.x + lipVel.x * t);
-}
-const stream = new Stream({ start: streamStart, velocity: lipVel, flow: FLOW, endY: landY }, stage.env);
-if (!off.has('stream')) scene.add(stream.mesh);
+// The simulation, and what it moves
+const sim = new ShishiodoshiSim();
+const simView = new SimView(sim, world, water, stage.env, new THREE.Color('#d9c89a'));
+probe.inspect.sim = sim;
+if (!off.has('stream')) scene.add(simView.kakeiStream.mesh, simView.pour.mesh);
 
 const preset = cameraPresets[view] ?? cameraPresets.main;
 const camera = new THREE.PerspectiveCamera(preset.fov, 1, 0.01, 100);
@@ -99,24 +92,32 @@ const post = new Post(renderer, scene, camera);
 window.addEventListener('resize', resize);
 resize();
 
-// The simulation (P1) will plug in here; for now the stepper only keeps sim time.
 const stepper = new FixedStepper();
 const clock = new THREE.Timer();
+const step = (h: number) => {
+  simView.beforeStep();
+  sim.step(h);
+};
+for (let t = Number(params.get('t') ?? 0); t > 0; t -= 0.25) stepper.advance(Math.min(t, 0.25), step);
+sim.drainEvents();
 
 renderer.compile(scene, camera);
 renderer.setAnimationLoop((timestamp) => {
   clock.update(timestamp);
-  const dt = clock.getDelta();
-  stepper.advance(dt, () => {});
+  // a stalled tab (or the first frame after loading) must not dump seconds of forcing at once
+  const dt = Math.min(clock.getDelta(), 0.1);
+  stepper.advance(dt, step);
+  sim.drainEvents(); // the sound engine will consume these (P2)
+  simView.update(stepper.alpha, dt);
   if (!off.has('water')) water.update(dt);
-  stream.update(stepper.time);
   controls.update();
   if (off.has('dof')) renderer.render(scene, camera);
   else post.render(controls.target);
 
-  hud.frame(dt, `sim ${stepper.time.toFixed(1)} s`);
+  const st = sim.state;
+  hud.frame(dt, `sim ${st.time.toFixed(1)} s  ${THREE.MathUtils.radToDeg(st.angle).toFixed(1)} deg  ${(st.volume * 1e6).toFixed(0)} mL`);
   probe.frames++;
-  probe.simTime = stepper.time;
+  probe.simTime = st.time;
   probe.fps = hud.currentFps;
   probe.ready = true;
 });

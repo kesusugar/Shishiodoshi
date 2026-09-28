@@ -2,19 +2,11 @@ import * as THREE from 'three';
 import { ENV_GLSL, type EnvUniforms } from '../env';
 
 /**
- * The thin stream from the kakei: a tube along the falling water's parabola. The flow rate is the
- * same all the way down, so as the water speeds up the stream gets thinner (r = sqrt(Q / (pi v))).
- * Its surface ripples with small travelling bulges (the start of the break-up into drops).
+ * Falling water: a tube along the parabola from where it leaves a lip. The flow rate is the same all
+ * the way down, so as the water speeds up the stream gets thinner (r = sqrt(Q / (pi v))). Its surface
+ * carries small travelling bulges (the start of the break-up into drops). Used for the kakei's stream
+ * and for the pour out of the tube's mouth; both are reshaped from the simulation every frame.
  */
-export interface StreamSpec {
-  /** Where the water leaves the lip (world) and its horizontal velocity there (m/s). */
-  start: THREE.Vector3;
-  velocity: THREE.Vector3;
-  /** Flow rate (m^3/s). */
-  flow: number;
-  /** Stop when the water falls to this height (m). */
-  endY: number;
-}
 
 const G = 9.81;
 const SEGS = 64;
@@ -23,33 +15,18 @@ const AROUND = 12;
 export class Stream {
   readonly mesh: THREE.Mesh;
   private readonly uTime = { value: 0 };
+  private readonly uEndY = { value: -1 };
+  private readonly pos: Float32Array;
+  private readonly nrm: Float32Array;
+  private readonly along: Float32Array;
+  private readonly geo: THREE.BufferGeometry;
 
-  constructor(spec: StreamSpec, env: EnvUniforms) {
-    const { start: p0, velocity: v0, flow, endY } = spec;
-    // time to fall to endY: p0.y + v0.y t - g t^2 / 2 = endY
-    const a = -G / 2, b = v0.y, c = p0.y - endY;
-    const tEnd = (-b - Math.sqrt(b * b - 4 * a * c)) / (2 * a);
-
-    const pos: number[] = [], nrm: number[] = [], along: number[] = [], idx: number[] = [];
-    const frame = new THREE.Vector3(0, 0, 1);
-    for (let i = 0; i <= SEGS; i++) {
-      const t = (i / SEGS) ** 1.4 * tEnd; // denser near the lip, where the stream bends most
-      const c0 = new THREE.Vector3(p0.x + v0.x * t, p0.y + v0.y * t - (G * t * t) / 2, p0.z + v0.z * t);
-      const vel = new THREE.Vector3(v0.x, v0.y - G * t, v0.z);
-      const speed = vel.length();
-      const r = Math.sqrt(flow / (Math.PI * Math.max(speed, 0.15)));
-      const tan = vel.clone().normalize();
-      const side = new THREE.Vector3().crossVectors(tan, frame).normalize();
-      const up = new THREE.Vector3().crossVectors(side, tan).normalize();
-      for (let j = 0; j <= AROUND; j++) {
-        const phi = (j / AROUND) * Math.PI * 2;
-        const n = side.clone().multiplyScalar(Math.cos(phi)).addScaledVector(up, Math.sin(phi));
-        const p = c0.clone().addScaledVector(n, r);
-        pos.push(p.x, p.y, p.z);
-        nrm.push(n.x, n.y, n.z);
-        along.push(t, r);
-      }
-    }
+  constructor(env: EnvUniforms, private readonly thicken = 1) {
+    const n = (SEGS + 1) * (AROUND + 1);
+    this.pos = new Float32Array(n * 3);
+    this.nrm = new Float32Array(n * 3);
+    this.along = new Float32Array(n * 2);
+    const idx: number[] = [];
     for (let i = 0; i < SEGS; i++) {
       for (let j = 0; j < AROUND; j++) {
         const a0 = i * (AROUND + 1) + j, b0 = a0 + 1, c1 = a0 + AROUND + 1, d = c1 + 1;
@@ -57,17 +34,18 @@ export class Stream {
       }
     }
     const g = new THREE.BufferGeometry();
-    g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
-    g.setAttribute('normal', new THREE.Float32BufferAttribute(nrm, 3));
-    g.setAttribute('aAlong', new THREE.Float32BufferAttribute(along, 2));
+    g.setAttribute('position', new THREE.BufferAttribute(this.pos, 3).setUsage(THREE.DynamicDrawUsage));
+    g.setAttribute('normal', new THREE.BufferAttribute(this.nrm, 3).setUsage(THREE.DynamicDrawUsage));
+    g.setAttribute('aAlong', new THREE.BufferAttribute(this.along, 2).setUsage(THREE.DynamicDrawUsage));
     g.setIndex(idx);
+    this.geo = g;
 
-    // A thin rod of water: the rim shows the garden reflected (Fresnel), the middle the garden seen
+    // A rod of water: the rim shows the garden reflected (Fresnel), the middle the garden seen
     // through it, bent and faintly tinted; the sun glints off it. Cheap enough to draw directly.
     const mat = new THREE.ShaderMaterial({
-      uniforms: { ...env, uTime: this.uTime },
+      uniforms: { ...env, uTime: this.uTime, uEndY: this.uEndY },
       vertexShader: /* glsl */ `
-        attribute vec2 aAlong;
+        attribute vec2 aAlong;   // time since leaving the lip (s), radius (m)
         uniform float uTime;
         varying vec3 vPos, vNrm;
         void main() {
@@ -83,8 +61,10 @@ export class Stream {
       fragmentShader:
         ENV_GLSL +
         /* glsl */ `
+        uniform float uEndY;
         varying vec3 vPos, vNrm;
         void main() {
+          if (vPos.y < uEndY) discard;   // it has landed (in the tube, on the bamboo, in the basin)
           vec3 n = normalize(vNrm), v = normalize(vPos - cameraPosition);
           if (dot(n, v) > 0.0) n = -n;
           float c = clamp(-dot(v, n), 0.0, 1.0);
@@ -100,8 +80,54 @@ export class Stream {
         }`,
     });
     this.mesh = new THREE.Mesh(g, mat);
-    this.mesh.castShadow = false;
     this.mesh.frustumCulled = false;
+    this.mesh.visible = false;
+  }
+
+  /**
+   * Reshape: water leaving `start` (world) at `velocity` with flow `flow` (m^3/s), drawn down to
+   * height `bottomY`; the part below `endY` is hidden (it has landed).
+   */
+  set(start: THREE.Vector3, velocity: THREE.Vector3, flow: number, bottomY: number, endY: number): void {
+    if (flow <= 0) {
+      this.mesh.visible = false;
+      return;
+    }
+    this.mesh.visible = true;
+    this.uEndY.value = endY;
+    const a = -G / 2, b = velocity.y, c = start.y - bottomY;
+    const tEnd = Math.max(0.02, (-b - Math.sqrt(Math.max(b * b - 4 * a * c, 0))) / (2 * a));
+    const c0 = new THREE.Vector3(), vel = new THREE.Vector3(), side = new THREE.Vector3(), up = new THREE.Vector3(), nn = new THREE.Vector3();
+    const zAxis = new THREE.Vector3(0, 0, 1);
+    for (let i = 0; i <= SEGS; i++) {
+      const t = (i / SEGS) ** 1.4 * tEnd; // denser near the lip, where the stream bends most
+      c0.set(start.x + velocity.x * t, start.y + velocity.y * t - (G * t * t) / 2, start.z + velocity.z * t);
+      vel.set(velocity.x, velocity.y - G * t, velocity.z);
+      const speed = vel.length();
+      const r = this.thicken * Math.sqrt(flow / (Math.PI * Math.max(speed, 0.15)));
+      vel.normalize();
+      side.crossVectors(vel, zAxis).normalize();
+      up.crossVectors(side, vel).normalize();
+      for (let j = 0; j <= AROUND; j++) {
+        const phi = (j / AROUND) * Math.PI * 2;
+        nn.copy(side).multiplyScalar(Math.cos(phi)).addScaledVector(up, Math.sin(phi));
+        const k = i * (AROUND + 1) + j;
+        this.pos[k * 3] = c0.x + nn.x * r;
+        this.pos[k * 3 + 1] = c0.y + nn.y * r;
+        this.pos[k * 3 + 2] = c0.z + nn.z * r;
+        this.nrm[k * 3] = nn.x;
+        this.nrm[k * 3 + 1] = nn.y;
+        this.nrm[k * 3 + 2] = nn.z;
+        this.along[k * 2] = t;
+        this.along[k * 2 + 1] = r;
+      }
+    }
+    for (const name of ['position', 'normal', 'aAlong']) this.geo.getAttribute(name).needsUpdate = true;
+  }
+
+  /** Hide the stream below this height (where it lands). */
+  setEnd(endY: number): void {
+    this.uEndY.value = endY;
   }
 
   update(time: number): void {
