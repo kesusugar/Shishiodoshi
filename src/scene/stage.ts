@@ -30,7 +30,7 @@ export function buildStage(renderer: THREE.WebGLRenderer, scene: THREE.Scene, se
   sun.position.copy(env.uSunDir.value).multiplyScalar(6); // far enough that the leaves overhead fit in its shadow camera
   sun.castShadow = true;
   // wide enough that the dappled light (render/canopy.ts) covers all the ground in view before the haze
-  sun.shadow.mapSize.set(3072, 3072);
+  sun.shadow.mapSize.set(2048, 2048);
   const s = sun.shadow.camera;
   s.left = -2.2;
   s.right = 2.2;
