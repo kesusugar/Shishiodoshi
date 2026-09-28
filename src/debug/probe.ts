@@ -9,6 +9,8 @@ export interface Probe {
   gpu: string;
   fps: number;
   error: string | null;
+  /** With ?at=T: the simulation has reached T and everything is held still. */
+  frozen: boolean;
   /** Live objects for inspection from tools/ (the simulation). */
   inspect: Record<string, unknown>;
 }
@@ -19,5 +21,5 @@ declare global {
   }
 }
 
-export const probe: Probe = { ready: false, frames: 0, simTime: 0, gpu: '', fps: 0, error: null, inspect: {} };
+export const probe: Probe = { ready: false, frames: 0, simTime: 0, gpu: '', fps: 0, error: null, frozen: false, inspect: {} };
 window.__shishi = probe;

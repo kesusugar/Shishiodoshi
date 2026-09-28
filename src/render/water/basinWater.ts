@@ -115,7 +115,7 @@ export class BasinWater {
           vec2 q = (p - uDrops[i].xy) / uDrops[i].z;
           float k = exp(-dot(q, q));
           h += uDrops[i].w * k;
-          foam += max(-uDrops[i].w, 0.0) * 0.08 * k;
+          foam += max(-uDrops[i].w - 0.3, 0.0) * 1.5 * k;   // only plunging water (a pour), not a trickle
         }
         gl_FragColor = vec4(h, c.r, min(foam, 1.5), 1.0);
       }`,

@@ -124,14 +124,23 @@ const step = (h: number) => {
   graph.record(sim, events.flatMap((e) => (e.type === 'strike' ? [e] : [])));
   pending.push(...events);
 };
-for (let t = Number(params.get('t') ?? 0); t > 0; t -= 0.25) stepper.advance(Math.min(t, 0.25), step);
+// ?at=T (for screenshots): fast-forward to 0.6 s before T, run on (so ripples develop), and freeze at T
+const at = Number(params.get('at') ?? 0);
+for (let t = at > 0 ? Math.max(0, at - 0.6) : Number(params.get('t') ?? 0); t > 0; t -= 0.25) stepper.advance(Math.min(t, 0.25), step);
 pending.length = 0;
 
 renderer.compile(scene, camera);
 renderer.setAnimationLoop((timestamp) => {
   clock.update(timestamp);
-  // a stalled tab (or the first frame after loading) must not dump seconds of forcing at once
-  const dt = Math.min(clock.getDelta(), 0.1);
+  // a stalled tab (or the first frame after loading) must not dump seconds of forcing at once;
+  // and the first frame can come out negative (its timestamp predates heavy work before it)
+  const real = Math.min(Math.max(clock.getDelta(), 0), 0.1);
+  // screenshots advance exactly 1/60 s per frame, so a given frame count is a given moment
+  let dt = capture ? 1 / 60 : real;
+  if (at > 0 && sim.state.time >= at - 1e-9) {
+    dt = 0;
+    probe.frozen = true;
+  }
   stepper.advance(dt, step);
   audio?.send(sim, pending, sim.state.time);
   pending.length = 0;

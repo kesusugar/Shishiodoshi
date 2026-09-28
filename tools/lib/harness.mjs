@@ -63,10 +63,15 @@ export async function openApp(opts = {}) {
     await page.waitForFunction((t) => window.__shishi.frames >= t, start + n, { timeout: 120_000 });
   }
 
+  /** Wait until the page has drawn `n` frames in total since it loaded. */
+  async function untilFrame(n) {
+    await page.waitForFunction((t) => window.__shishi.frames >= t, n, { timeout: 120_000 });
+  }
+
   async function close() {
     await browser.close();
     await server.close();
   }
 
-  return { page, errors, load, frames, close, base };
+  return { page, errors, load, frames, untilFrame, close, base };
 }

@@ -63,7 +63,7 @@ export class SimView {
       // a steady stream into the basin: a small crater, jittering
       for (let i = 0; i < 2; i++) {
         this.tmp.set(land.x + (this.rand() - 0.5) * 0.006, land.y, (this.rand() - 0.5) * 0.006);
-        this.basin.addDrop(this.tmp, 0.004, -(0.6 + this.rand()) * 60 * dt);
+        this.basin.addDrop(this.tmp, 0.004, -(0.6 + this.rand()) * 12 * dt);
       }
     }
     this.tubeWater.update(out.surface, hit, st.time);
@@ -75,7 +75,10 @@ export class SimView {
       const axis = new THREE.Vector3(Math.cos(st.angle), Math.sin(st.angle), 0);
       // water leaves along the tube, plus the lip's own motion as the tube swings
       const rx = lip.x - cfg.pivot.x, ry = lip.y - cfg.pivot.y;
-      const vel = axis.multiplyScalar(Math.max(sp.speed, 0.2)).add(new THREE.Vector3(-ry * st.omega, rx * st.omega, 0));
+      // (water spilling over a lip only partly takes up the lip's swing, and is never flung upward:
+      // as the tube swings back up, the last of it slides off rather than being thrown)
+      const vel = axis.multiplyScalar(Math.max(sp.speed, 0.2)).add(new THREE.Vector3(-ry * st.omega, rx * st.omega, 0).multiplyScalar(0.4));
+      vel.y = Math.min(vel.y, 0.05);
       const endY = this.landsInBasin(lip, vel) ? cfg.basinLevel : 0;
       this.pour.set(lip, vel, sp.flow, endY, endY);
       this.pour.update(st.time);
@@ -85,7 +88,7 @@ export class SimView {
         const k = Math.min(1, sp.flow / 4e-4);
         for (let i = 0; i < 3; i++) {
           this.tmp.set(lip.x + vel.x * t + (this.rand() - 0.5) * 0.02, cfg.basinLevel, (this.rand() - 0.5) * 0.02);
-          this.basin.addDrop(this.tmp, 0.008 + 0.01 * k, -(0.5 + this.rand()) * 400 * k * dt);
+          this.basin.addDrop(this.tmp, 0.008 + 0.01 * k, -(0.5 + this.rand()) * 35 * k * dt);
         }
       }
     } else {
