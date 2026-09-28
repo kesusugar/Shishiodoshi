@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+import { AudioEngine } from './audio/engine';
 import { waitForStart } from './audio/startGate';
 import { SimGraph } from './debug/graph';
 import { gpuName, Hud } from './debug/hud';
@@ -63,6 +64,15 @@ if (!off.has('water')) scene.add(water.mesh);
 const sim = new ShishiodoshiSim();
 const simView = new SimView(sim, world, water, stage.env, new THREE.Color('#d9c89a'));
 probe.inspect.sim = sim;
+// offline sound for tools/audio.mjs: WAV bytes as base64
+probe.inspect.renderAudio = async (seconds: number, start: number) => {
+  const { renderOffline } = await import('./audio/offline');
+  const bytes = new Uint8Array(await renderOffline(seconds, start));
+  let s = '';
+  for (let i = 0; i < bytes.length; i += 0x8000) s += String.fromCharCode(...bytes.subarray(i, i + 0x8000));
+  return btoa(s);
+};
+let audio: AudioEngine | null = null;
 const graph = new SimGraph(document.body, params.has('debug'));
 // "tip it now" (PLAN.md 8章): fill the tube to its lip, so the moment comes without waiting
 const tipButton = document.querySelector<HTMLButtonElement>('#tip')!;
@@ -119,7 +129,8 @@ renderer.setAnimationLoop((timestamp) => {
   // a stalled tab (or the first frame after loading) must not dump seconds of forcing at once
   const dt = Math.min(clock.getDelta(), 0.1);
   stepper.advance(dt, step);
-  pending.length = 0; // the sound engine will consume these (P2)
+  audio?.send(sim, pending, sim.state.time);
+  pending.length = 0;
   simView.update(stepper.alpha, dt);
   if (!off.has('water')) water.update(dt);
   controls.update();
@@ -154,7 +165,7 @@ renderer.setAnimationLoop((timestamp) => {
 }
 
 if (!capture) {
-  void waitForStart(document.querySelector<HTMLElement>('#start')!).then((ctx) => {
-    console.info(`[shishi] audio started at ${ctx.sampleRate} Hz`);
+  void waitForStart(document.querySelector<HTMLElement>('#start')!).then(async (ctx) => {
+    audio = await AudioEngine.create(ctx);
   });
 }
