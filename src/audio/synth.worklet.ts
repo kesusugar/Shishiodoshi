@@ -2,13 +2,22 @@
  * The shishi-odoshi's sound, synthesised sample by sample (PLAN.md 7章). No recordings: every sound
  * starts from a physical event or quantity the simulation reports.
  *
- * - The knock: the tube's bending modes (free-free beam, from its size and stiffness) and the air
- *   column in the compartment (a quarter-wave tube, shortened by the water left in it), excited by
- *   a contact pulse whose strength and shortness follow the strike speed, plus the stone's click.
- * - Water: bubbles (Minnaert resonance f = 3.26 / r, rising slightly as they near the surface,
- *   decaying per van den Doel), spawned at a rate set by where and how much water lands. Water
- *   falling into the tube also rings its air column, whose pitch climbs as the tube fills.
- * - The pour: many large bubbles at once and a broadband rush.
+ * Loudness order (the knock is THE sound; the water stays in the background):
+ *   knock (high) > pour off the lip, water landing in the basin (low-medium) > the kakei's trickle (low)
+ *
+ * - The knock ("kon!"), started exactly at the strike's time, as a sum of decaying modes:
+ *   a hard contact transient (a few ms of bright noise), the culm wall's ovalling modes (the
+ *   hollow woody tone, ~1 kHz and ~2.7 kHz for this culm), its bending modes (free-free beam), a
+ *   faint air column (quarter-wave, shortened by water left in it) and a very faint stone thud.
+ *   Bamboo is heavily damped, so everything dies within ~0.2 s: no bell-like ring.
+ *   The strike's intensity (its angular speed before contact, relative to a normal cycle) sets
+ *   the gain, the brightness (how much the upper modes are excited), a slight rise in pitch and a
+ *   slightly longer ring; each strike also detunes its modes a little, so no two are identical.
+ * - The kakei's trickle: small bubbles (Minnaert f = 3.26 / r, van den Doel decay) where it lands;
+ *   into the tube it also rings the air column, whose pitch climbs as the tube fills.
+ * - The pour: a soft, band-limited rush following the drain rate over the lip.
+ * - The landing: bubbles and a soft splash where the poured water reaches the basin, following
+ *   the flow arriving there (the pour's flow delayed by its fall time).
  * - Wind in the leaves, faint.
  */
 
@@ -21,17 +30,21 @@ declare class AudioWorkletProcessor {
 
 type Target = 'mouth' | 'skin' | 'basin' | 'ground';
 
-interface StrikeMsg { type: 'strike'; time: number; speed: number; airLength: number }
+interface StrikeMsg { type: 'strike'; time: number; intensity: number; airLength: number }
 interface ParamsMsg {
   type: 'params';
   streamTarget: Target;
   streamFlow: number; // m^3/s landing
   fallHeight: number; // m the stream fell
   airLength: number; // m of air in the compartment
-  pourFlow: number; // m^3/s over the lip
+  pourFlow: number; // m^3/s over the lip (the drain rate)
+  landFlow: number; // m^3/s of poured water reaching the basin now
   wind: number;
   gains: { knock: number; water: number; ambient: number };
 }
+
+// Mix: the knock's level at a normal strike, and the water layers under it (see the header)
+const MIX = { knock: 0.7, trickle: 0.14, pour: 0.07, landBubbles: 0.06, landSplash: 0.016 };
 
 const TWO_PI = Math.PI * 2;
 const SOUND = 343;
@@ -87,43 +100,110 @@ class Rng {
   }
 }
 
-// The tube as a free-free beam: f_n = (beta_n L)^2 / (2 pi L^2) sqrt(EI / (rho A))
-const TUBE = { length: 0.76, outer: 0.036, inner: 0.03, E: 15e9, density: 750 };
-const BEAM = [4.73, 7.853, 10.996, 14.137];
-function tubeModes(): { f: number; t60: number; a: number }[] {
-  const { length: L, outer: R, inner: r, E, density } = TUBE;
+// The culm. E along the fibres for bending, across them for the wall's ovalling.
+const TUBE = { length: 0.76, outer: 0.036, inner: 0.03, E: 15e9, Etrans: 1.5e9, density: 750 };
+const BEAM = [4.73, 7.853, 10.996];
+
+interface Mode { f: number; t60: number; a: number; /** how much a harder strike brings this mode up (brightness) */ bright: number }
+
+/**
+ * The knock's modes, loudest first:
+ * - ovalling of the wall (ring modes n = 2, 3 of a thin shell):
+ *   f_n = h / (2 pi R^2) sqrt(E / (12 rho (1 - nu^2))) n (n^2 - 1) / sqrt(n^2 + 1)
+ * - bending of the whole culm (free-free beam): f_n = (beta_n L)^2 / (2 pi L^2) sqrt(E I / (rho A))
+ */
+function knockModes(): Mode[] {
+  const { length: L, outer: R, inner: r, E, Etrans, density } = TUBE;
+  const h = R - r, Rm = (R + r) / 2;
+  const shell = (h / (TWO_PI * Rm * Rm)) * Math.sqrt(Etrans / (12 * density * (1 - 0.3 * 0.3)));
+  const ring = (n: number) => shell * (n * (n * n - 1)) / Math.sqrt(n * n + 1);
   const I = (Math.PI / 4) * (R ** 4 - r ** 4);
   const A = Math.PI * (R * R - r * r);
   const k = Math.sqrt((E * I) / (density * A));
-  // higher modes die faster; the first carries most of the knock
-  return BEAM.map((b, i) => ({ f: ((b * b) / (TWO_PI * L * L)) * k, t60: 0.22 / (1 + 0.7 * i), a: [1, 0.55, 0.35, 0.2][i] }));
+  const beam = (i: number) => ((BEAM[i] * BEAM[i]) / (TWO_PI * L * L)) * k;
+  return [
+    { f: ring(2), t60: 0.22, a: 1.0, bright: 0 }, // ~1 kHz: the "kon"
+    { f: ring(3), t60: 0.08, a: 0.45, bright: 0.8 }, // ~2.7 kHz: the edge of the "k"
+    { f: beam(0), t60: 0.15, a: 0.4, bright: 0 }, // ~650 Hz: body
+    { f: beam(1), t60: 0.07, a: 0.3, bright: 0.5 },
+    { f: beam(2), t60: 0.045, a: 0.18, bright: 1 },
+  ];
+}
+const MODES = knockModes();
+
+/** One knock: modes that start together at the strike and decay; overlapping knocks (bounces) add. */
+class Knock {
+  private readonly f: number[];
+  private readonly amp: number[];
+  private readonly dec: number[];
+  private readonly air: { f: number; amp: number; dec: number };
+  private t = 0;
+  private readonly contact: number; // s, the contact time: the modes swell over it
+  private readonly clickAmp: number;
+  private readonly thudAmp: number;
+  private readonly hp = new OnePole();
+  private readonly lp = new OnePole();
+  readonly gain: number;
+  constructor(intensity: number, airLength: number, rng: Rng) {
+    this.hp.setCutoff(2000);
+    this.lp.setCutoff(800);
+    const I = Math.max(0, intensity);
+    // harder: a touch sharper (the wall stiffens under the blow) and rings a little longer
+    const pitch = 1 + 0.008 * Math.min(I, 1.5);
+    const ring = 0.85 + 0.2 * Math.min(I, 1.5);
+    this.f = MODES.map((m) => m.f * pitch * (1 + 0.006 * rng.bi()));
+    this.amp = MODES.map((m) => m.a * Math.pow(Math.min(I, 1.5), m.bright) * (1 + 0.1 * rng.bi()));
+    this.dec = MODES.map((m) => 6.91 / (m.t60 * ring));
+    // the air column: the hollowness under the knock, faint
+    const fa = SOUND / (4 * (airLength + 0.6 * TUBE.inner));
+    this.air = { f: fa * (1 + 0.004 * rng.bi()), amp: 0.22, dec: 6.91 / (0.1 * ring) };
+    this.contact = 0.0012 - 0.0006 * Math.min(I, 1.5);
+    this.clickAmp = 0.6 * Math.pow(Math.min(I, 1.5), 1.2);
+    this.thudAmp = 0.08;
+    // gain: a firmer knock with more swing, but gently (a bounce at a third of the speed is ~1/4 as loud)
+    this.gain = Math.pow(I, 1.25);
+  }
+  get done(): boolean {
+    return this.t > 0.4;
+  }
+  tick(dt: number, noise: number): number {
+    const t = this.t;
+    // modes swell over the contact time, then ring down
+    const swell = t < this.contact ? 0.5 - 0.5 * Math.cos((Math.PI * t) / this.contact) : 1;
+    let y = 0;
+    for (let i = 0; i < this.f.length; i++) y += this.amp[i] * Math.exp(-this.dec[i] * t) * Math.sin(TWO_PI * this.f[i] * t);
+    y += this.air.amp * Math.exp(-this.air.dec * t) * Math.sin(TWO_PI * this.air.f * t);
+    y *= swell;
+    // the contact itself: a few ms of bright noise (the hard "k")
+    y += this.hp.hp(noise * this.clickAmp * Math.exp(-t / 0.0015));
+    // the stone: a dull, very faint thud
+    y += this.lp.lp(noise * this.thudAmp * Math.exp(-t / 0.006)) + 0.05 * Math.exp(-t / 0.03) * Math.sin(TWO_PI * 120 * t);
+    this.t += dt;
+    return y * this.gain;
+  }
 }
 
 class ShishiSynth extends AudioWorkletProcessor {
   private readonly rng = new Rng();
   private readonly strikes: StrikeMsg[] = [];
   private p: ParamsMsg = {
-    type: 'params', streamTarget: 'mouth', streamFlow: 0, fallHeight: 0.1, airLength: 0.4, pourFlow: 0, wind: 0.25,
+    type: 'params', streamTarget: 'mouth', streamFlow: 0, fallHeight: 0.1, airLength: 0.4, pourFlow: 0, landFlow: 0, wind: 0.25,
     gains: { knock: 1, water: 1, ambient: 1 },
   };
-  // knock
-  private readonly modes = tubeModes().map((m) => {
-    const res = new Resonator();
-    res.set(m.f, m.t60);
-    return { res, a: m.a };
-  });
-  private readonly airKnock = new Resonator();
-  private pulse: { n: number; len: number; amp: number; click: number } | null = null;
-  private readonly clickHp = new OnePole();
+  // knocks ringing (a strike and its bounces can overlap)
+  private readonly knocks: Knock[] = [];
   // water
   private readonly bubbles: Bubble[] = [];
   private readonly tubeAir = new Resonator();
   private readonly tubeAir2 = new Resonator();
   private airLen = 0.4;
   private readonly splashHp = new OnePole();
-  private readonly rushBp1 = new OnePole();
-  private readonly rushBp2 = new OnePole();
+  private readonly rushHp = new OnePole();
+  private readonly rushLp = new OnePole();
+  private readonly landHp = new OnePole();
+  private readonly landLp = new OnePole();
   private pourEnv = 0;
+  private landEnv = 0;
   private streamEnv = 0;
   // wind
   private readonly windLp = new OnePole();
@@ -133,10 +213,12 @@ class ShishiSynth extends AudioWorkletProcessor {
 
   constructor() {
     super();
-    this.clickHp.setCutoff(2500);
     this.splashHp.setCutoff(900);
-    this.rushBp1.setCutoff(5000);
-    this.rushBp2.setCutoff(700);
+    // the pour: water sliding off a lip is a soft, mid-band rush, not a hiss
+    this.rushHp.setCutoff(350);
+    this.rushLp.setCutoff(1800);
+    this.landHp.setCutoff(500);
+    this.landLp.setCutoff(3000);
     this.windLp.setCutoff(500);
     this.windLp2.setCutoff(180);
     this.setAir(0.4);
@@ -177,36 +259,25 @@ class ShishiSynth extends AudioWorkletProcessor {
     // bubble rates from where the water lands (per second)
     const intoTube = p.streamTarget === 'mouth';
     const streamRate = p.streamFlow > 0 ? 40 + p.streamFlow * 3e6 * Math.min(1, p.fallHeight / 0.2) : 0;
-    const pourRate = p.pourFlow * 1.2e6;
+    const land = Math.min(1, p.landFlow / 6e-4);
+    const landRate = land > 0.01 ? 80 + 500 * land : 0;
     for (let i = 0; i < n; i++) {
       const t = currentTime + i * dt;
-      let knock = 0, water = 0, tubeIn = 0;
+      let knock = 0, trickle = 0, tubeIn = 0, landing = 0;
 
-      // strikes that are due now start a contact pulse
+      // strikes due by this sample start a knock (sample-accurate)
       while (this.strikes.length && this.strikes[0].time <= t) {
         const s = this.strikes.shift()!;
-        const v = Math.min(s.speed, 2);
-        // a harder strike is louder and shorter (brighter): contact time ~ 1.5 ms down to 0.4 ms
-        const len = Math.max(4, Math.round(sampleRate * (0.0015 - 0.0005 * Math.min(v, 2))));
-        this.pulse = { n: 0, len, amp: Math.pow(v, 1.3) * 2.2, click: v * v * 0.15 };
-        this.airKnock.set(SOUND / (4 * (s.airLength + 0.6 * TUBE.inner)), 0.22);
+        if (s.intensity > 0.03) this.knocks.push(new Knock(s.intensity, s.airLength, this.rng));
       }
-      let exc = 0, click = 0;
-      if (this.pulse) {
-        const q = this.pulse;
-        exc = q.amp * 0.5 * (1 - Math.cos((TWO_PI * q.n) / q.len));
-        click = q.click * this.rng.bi() * Math.exp(-q.n / (sampleRate * 0.003));
-        if (++q.n >= q.len * 6) this.pulse = null;
-        else if (q.n >= q.len) exc = 0;
+      for (let k = this.knocks.length - 1; k >= 0; k--) {
+        knock += this.knocks[k].tick(dt, this.rng.bi());
+        if (this.knocks[k].done) this.knocks.splice(k, 1);
       }
-      for (const m of this.modes) knock += m.a * m.res.tick(exc);
-      knock += 1.2 * this.airKnock.tick(exc);
-      knock += this.clickHp.hp(click);
 
-      // bubbles
-      const dtRate = dt;
-      if (streamRate > 0 && this.rng.next() < streamRate * dtRate) this.spawnBubble(0.0012, 0.004, 0.05, intoTube);
-      if (pourRate > 0 && this.rng.next() < pourRate * dtRate) this.spawnBubble(0.0015, 0.009, 0.12, false);
+      // bubbles: the trickle's (into the tube or the basin) and the poured water's in the basin
+      if (streamRate > 0 && this.rng.next() < streamRate * dt) this.spawnBubble(0.0012, 0.004, 0.05, intoTube);
+      if (landRate > 0 && this.rng.next() < landRate * dt) this.spawnBubble(0.0015, 0.006, -1, false);
       for (let b = this.bubbles.length - 1; b >= 0; b--) {
         const bb = this.bubbles[b];
         const env = Math.exp(-bb.decay * bb.t);
@@ -215,24 +286,28 @@ class ShishiSynth extends AudioWorkletProcessor {
           continue;
         }
         bb.phase += TWO_PI * bb.f * (1 + bb.rise * bb.t) * dt;
-        const s = bb.amp * env * Math.sin(bb.phase) * Math.min(1, bb.t * 1500);
+        // (a negative amplitude marks a landing bubble: its level is set by the mix below)
+        const s = Math.abs(bb.amp) * env * Math.sin(bb.phase) * Math.min(1, bb.t * 1500);
         bb.t += dt;
-        if (bb.tube) tubeIn += s;
-        else water += s;
+        if (bb.amp < 0) landing += s * MIX.landBubbles;
+        else if (bb.tube) tubeIn += s;
+        else trickle += s;
       }
       // water striking water: a splashy noise; inside the tube it rings the air column
       this.streamEnv += ((p.streamFlow > 0 ? 1 : 0) - this.streamEnv) * 0.0005;
       const splash = this.splashHp.hp(this.rng.bi()) * this.streamEnv * 0.02 * Math.min(1, p.fallHeight / 0.2);
       if (intoTube) tubeIn += splash;
-      else water += splash;
+      else trickle += splash;
       const air = this.tubeAir.tick(tubeIn * 6) * 3 + this.tubeAir2.tick(tubeIn * 6) * 1.2;
-      water += tubeIn * 0.5 + air;
+      trickle += tubeIn * 0.5 + air;
 
-      // the pour's rush
+      // the pour off the lip: follows the drain rate
       this.pourEnv += (Math.min(1, p.pourFlow / 6e-4) - this.pourEnv) * 0.002;
       const nz = this.rng.bi();
-      const rush = (this.rushBp1.lp(nz) - this.rushBp2.lp(nz)) * this.pourEnv * 0.35;
-      water += rush;
+      const rush = this.rushLp.lp(this.rushHp.hp(nz)) * this.pourEnv * MIX.pour;
+      // the landing: a soft splash under the bubbles, following the flow arriving in the basin
+      this.landEnv += (land - this.landEnv) * 0.003;
+      landing += this.landLp.lp(this.landHp.hp(this.rng.bi())) * this.landEnv * MIX.landSplash;
 
       // wind: brown noise, low-passed, swelling slowly
       this.brown = (this.brown + 0.02 * this.rng.bi()) * 0.995;
@@ -240,8 +315,8 @@ class ShishiSynth extends AudioWorkletProcessor {
       const gust = 0.5 + 0.5 * Math.sin(TWO_PI * this.windPhase) * Math.sin(TWO_PI * this.windPhase * 0.37 + 1.3);
       const wind = this.windLp.lp(this.windLp2.lp(this.brown) * 0.5 + this.brown * 0.3) * (0.2 + 0.8 * gust) * p.wind * 0.08;
 
-      // the trickle is a quiet background; the knock rings out over it
-      const mono = knock * g.knock + water * g.water * 0.35;
+      const water = trickle * MIX.trickle + rush + landing;
+      const mono = knock * MIX.knock * g.knock + water * g.water;
       // the tube and basin sit a little left of centre; the wind is wide
       const l = Math.tanh(mono * 1.05 + wind * g.ambient);
       const r = Math.tanh(mono * 0.95 - wind * g.ambient * 0.6);

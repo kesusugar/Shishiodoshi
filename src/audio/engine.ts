@@ -20,6 +20,8 @@ export class AudioEngine {
   readonly node: AudioWorkletNode;
   readonly master: GainNode;
   gains: AudioGains = { knock: 1, water: 1, ambient: 1 };
+  /** Pour flow keyed by the time it arrives in the basin. */
+  private readonly pourHistory: { time: number; flow: number }[] = [];
 
   private constructor(readonly ctx: BaseAudioContext) {
     this.node = new AudioWorkletNode(ctx, 'shishi-synth', { numberOfInputs: 0, outputChannelCount: [2] });
@@ -40,16 +42,24 @@ export class AudioEngine {
   send(sim: ShishiodoshiSim, events: SimEvent[], simNow: number, offset?: number): void {
     const base = offset ?? this.ctx.currentTime + LOOKAHEAD - simNow;
     for (const e of events) {
-      if (e.type === 'strike') this.node.port.postMessage({ type: 'strike', time: base + e.time, speed: e.speed, airLength: e.airLength });
+      if (e.type === 'strike') this.node.port.postMessage({ type: 'strike', time: base + e.time, intensity: e.intensity, airLength: e.airLength });
     }
-    const cfg = sim.cfg, out = sim.out;
+    const cfg = sim.cfg, out = sim.out, st = sim.state;
+    // the poured water reaches the basin one fall time after leaving the lip
+    const sp = out.spill;
+    const lipY = cfg.pivot.y + sp.lipX * Math.sin(st.angle) + sp.lipY * Math.cos(st.angle);
+    const fall = Math.sqrt((2 * Math.max(0, lipY - cfg.basinLevel)) / cfg.gravity);
+    this.pourHistory.push({ time: st.time + fall, flow: sp.flow });
+    while (this.pourHistory.length > 1 && this.pourHistory[1].time <= st.time) this.pourHistory.shift();
+    const landFlow = this.pourHistory[0].time <= st.time ? this.pourHistory[0].flow : 0;
     this.node.port.postMessage({
       type: 'params',
       streamTarget: out.stream.target,
       streamFlow: cfg.inflow.flow,
       fallHeight: Math.max(0, cfg.inflow.spout.y - out.stream.y),
       airLength: sim.airLength(),
-      pourFlow: out.spill.flow,
+      pourFlow: sp.flow,
+      landFlow,
       wind: 0.25,
       gains: this.gains,
     });

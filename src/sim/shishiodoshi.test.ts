@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import { defaultConfig, type SimConfig } from './config';
+import { defaultConfig, tubeLowestY, type SimConfig } from './config';
+import type { SimEvent } from './events';
 import { SIM_DT } from './fixedStep';
 import { ShishiodoshiSim } from './shishiodoshi';
 
@@ -72,6 +73,52 @@ describe('shishi-odoshi simulation', () => {
       struck ||= s.state.angle > cfg.restAngle;
     });
     expect(peakAfterFirstStrike).toBeLessThan(e0);
+  });
+
+  it('never lets the tube reach the basin water: its lowest point stays the clearance above it', { timeout: 30_000 }, () => {
+    const cfg = defaultConfig;
+    let lowest = Infinity;
+    run(new ShishiodoshiSim(), 90, (s) => {
+      lowest = Math.min(lowest, tubeLowestY(cfg.pivot, cfg.tube, s.state.angle));
+    });
+    expect(lowest - cfg.basinLevel).toBeGreaterThanOrEqual(cfg.basinClearance);
+    // with the tip button too (a full tube tips hardest)
+    const sim = new ShishiodoshiSim();
+    sim.topUp();
+    lowest = Infinity;
+    run(sim, 4, (s) => {
+      lowest = Math.min(lowest, tubeLowestY(cfg.pivot, cfg.tube, s.state.angle));
+    });
+    expect(lowest - cfg.basinLevel).toBeGreaterThanOrEqual(cfg.basinClearance);
+  });
+
+  it('reports each strike at the step the tube reaches the stone, with its swing speed and intensity', () => {
+    const sim = new ShishiodoshiSim();
+    const strikes: Extract<SimEvent, { type: 'strike' }>[] = [];
+    // it starts resting on the stone
+    let inContact = true, prevOmega = 0, crossings = 0;
+    for (let i = 0, n = Math.round(40 / SIM_DT); i < n; i++) {
+      prevOmega = sim.state.omega;
+      sim.step(SIM_DT);
+      const a = sim.state.angle;
+      const events = sim.drainEvents().filter((e) => e.type === 'strike');
+      const reached = !inContact && a > defaultConfig.restAngle;
+      // an event exactly on the steps that reach the stone, and only those
+      expect(events.length).toBe(reached ? 1 : 0);
+      if (reached) {
+        crossings++;
+        const e = events[0] as Extract<SimEvent, { type: 'strike' }>;
+        expect(e.time).toBeCloseTo(sim.state.time, 12);
+        expect(e.omega).toBeCloseTo(Math.abs(prevOmega), 12);
+        strikes.push(e);
+      }
+      inContact = a > defaultConfig.restAngle;
+    }
+    expect(crossings).toBeGreaterThanOrEqual(2);
+    // the first strike of the cycle is a normal one; the bounces are softer
+    expect(strikes[0].intensity).toBeGreaterThan(0.8);
+    expect(strikes[0].intensity).toBeLessThan(1.2);
+    expect(strikes[1].intensity).toBeLessThan(strikes[0].intensity * 0.6);
   });
 
   it('is deterministic', () => {

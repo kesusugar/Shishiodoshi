@@ -68,10 +68,14 @@ node tools/audio.mjs --seconds=6 --start=24        # 音を WAV とスペクト�
 ```
 
 - カメラ: `?view=` に `main`（標準）、`close`（口と水面）、`mouth`（竹の口）、`stream`（筧の水）、`overflow`（あふれ）、`wide`（引き）
-- 倒れる時刻は流量で変わる。最初の注ぎ出しは約 25.97〜26.45 秒、コツンは 26.73 秒（流量を変えたらテストで時刻を出し直す）
+- 倒れる時刻は流量で変わる。最初の注ぎ出しは約 25.97〜26.53 秒、コツンは 26.746 秒（流量を変えたらテストで時刻を出し直す）
+- 竹は鉢の水面に届かない: 前の止め（横木）の角度は `basinClearance`（10 cm）から計算している（`src/sim/config.ts` の `frontStopFor`）。テストで保証している
+- 音の大きさの順番: コツン ＞ 注ぎ出し・鉢への着水 ＞ 筧のちょろちょろ。値は `src/audio/synth.worklet.ts` の `MIX`。聴感に近い大きさで比べること（低音は耳にもノートPCのスピーカーにも小さく聞こえる）
 - `npm run dev` → http://localhost:5173/Shishiodoshi/ 。画面左上の「すぐ倒す」で待たずに倒せる。`G` でグラフ
 
 ## 環境の注意
+
+- **クラウド（Claude Code on the web）でも作業できる**: `.claude/hooks/session-start.sh` がセッション開始時に `SHISHI_BROWSER`（入っている Chromium）と `SHISHI_SWIFTSHADER=1`（GPU なしの描画）を設定し、`npm ci` する。撮影・音の書き出しはそのまま動く（1 視点 50 秒ほどかかる）。fps はクラウドでは測れない
 
 - 元の PC は Intel Iris Xe（内蔵 GPU）。fps は PC の状態に大きく左右される（バッテリー節約中は 30fps 上限、Dropbox 同期中などは 16fps 程度まで落ちた）。**遅くなったら、まず前のコミットでも同じか測って、コードのせいか PC のせいかを切り分ける**
 - この PC の git には名前とメールが設定されていなかったので、`git -c user.name=Claude -c user.email=noreply@anthropic.com commit ...` でコミットしていた。新しい PC で設定済みならそのままでよい

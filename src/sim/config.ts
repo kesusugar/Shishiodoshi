@@ -29,8 +29,13 @@ export interface SimConfig {
   tube: TubeConfig;
   /** The tube's back rests on the striker stone at this angle (mouth up). */
   restAngle: number;
-  /** A soft stop in front (the tube's belly meets the crossbar) at this angle (mouth down). */
+  /**
+   * The front stop (the tube's belly meets the crossbar) at this angle (mouth down). It is placed
+   * from `basinClearance` (see frontStopFor), so the tube can never reach the basin water.
+   */
   frontStopAngle: number;
+  /** The smallest gap (m) allowed between the tube and the basin's water surface. */
+  basinClearance: number;
   contact: {
     /** Stiffness (N m / rad) and coefficient of restitution of bamboo on stone. */
     stiffness: number;
@@ -75,23 +80,50 @@ const flow = 16e-6; // 16 mL/s
 const lipSpeed = 0.18;
 const lipR = Math.sqrt(flow / (Math.PI * lipSpeed));
 
+/**
+ * World height of the tube's lowest point at a mouth-down angle: the outside of the lower lip at the
+ * mouth (tube-local (front, -radius)); nothing else on the tube hangs lower once the mouth is down.
+ */
+export function tubeLowestY(pivot: { y: number }, tube: TubeConfig, angle: number): number {
+  return pivot.y + tube.front * Math.sin(angle) - tube.radius * Math.cos(angle);
+}
+
+/**
+ * The front stop's angle for a clearance: the angle at which the lowest point of the tube is
+ * `clearance + margin` above the water (the margin absorbs the little the stiff stop gives).
+ * Solves front sin a - radius cos a = y, i.e. R sin(a - d) = y with R = |(front, radius)|.
+ */
+export function frontStopFor(pivot: { y: number }, tube: TubeConfig, basinLevel: number, clearance: number, margin = 0.015): number {
+  const y = basinLevel + clearance + margin - pivot.y;
+  const R = Math.hypot(tube.front, tube.radius);
+  return Math.asin(Math.max(-1, Math.min(1, y / R))) + Math.atan2(tube.radius, tube.front);
+}
+
+const pivot = { x: -0.34, y: 0.58 };
+const tube: TubeConfig = {
+  back: 0.3,
+  front: 0.46,
+  radius: 0.036,
+  wall: 0.006,
+  cut: 0.12,
+  diaphragm: -0.011,
+  nodes: [-0.288, -0.015, 0.2],
+  density: 750,
+  backPlug: 0.2,
+};
+const basinLevel = 0.255;
+// the tube's lip stays at least 10 cm above the water (about 7 cm above the basin's rim)
+const basinClearance = 0.1;
+
 export const defaultConfig: SimConfig = {
   gravity: 9.81,
-  pivot: { x: -0.34, y: 0.58 },
-  tube: {
-    back: 0.3,
-    front: 0.46,
-    radius: 0.036,
-    wall: 0.006,
-    cut: 0.12,
-    diaphragm: -0.011,
-    nodes: [-0.288, -0.015, 0.2],
-    density: 750,
-    backPlug: 0.2,
-  },
+  pivot,
+  tube,
   restAngle: 16 * deg,
-  frontStopAngle: -30 * deg,
-  contact: { stiffness: 400, restitution: 0.35, frontStiffness: 60, frontRestitution: 0.2 },
+  frontStopAngle: frontStopFor(pivot, tube, basinLevel, basinClearance), // about -23 degrees
+  basinClearance,
+  // the crossbar is a hard stop (it bounds the swing; the old soft one let the lip sink to 4 cm above the water)
+  contact: { stiffness: 400, restitution: 0.35, frontStiffness: 800, frontRestitution: 0.15 },
   friction: { viscous: 0.002, dry: 0.004 },
   inflow: {
     flow,
@@ -101,6 +133,6 @@ export const defaultConfig: SimConfig = {
   },
   weirCd: 0.6,
   slosh: { omega: 4.8, zeta: 0.12, coupling: 0.4 },
-  basinLevel: 0.255,
+  basinLevel,
   basin: { x: 0.1, radius: 0.19 },
 };

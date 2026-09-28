@@ -104,19 +104,20 @@ export class SimView {
       const endY = this.landsInBasin(lip, vel) ? cfg.basinLevel : 0;
       this.pour.set(lip, vel, sp.flow, endY, endY);
       this.pour.update(st.time);
-      // where it lands in the basin: a trough and a burst of ripples, stronger with more flow
+      // where it lands in the basin: a small, local disturbance at the impact point (a pour from a
+      // few cm up is a gentle plunge, not a splash), stronger with more flow
       if (endY > 0) {
         const t = this.fallTime(lip.y, vel.y, cfg.basinLevel);
         const k = Math.min(1, sp.flow / 4e-4);
         for (let i = 0; i < 3; i++) {
-          this.tmp.set(lip.x + vel.x * t + (this.rand() - 0.5) * 0.02, cfg.basinLevel, (this.rand() - 0.5) * 0.02);
-          this.basin.addDrop(this.tmp, 0.008 + 0.01 * k, -(0.5 + this.rand()) * 35 * k * dt);
+          this.tmp.set(lip.x + vel.x * t + (this.rand() - 0.5) * 0.012, cfg.basinLevel, (this.rand() - 0.5) * 0.012);
+          this.basin.addDrop(this.tmp, 0.007 + 0.006 * k, -(0.5 + this.rand()) * 18 * k * dt);
         }
-        // a spray of drops, thrown onward in the direction the water was going
-        this.splashAcc += 900 * k * dt;
+        // a few small drops thrown up, carried on a little in the direction the water was going
+        this.splashAcc += 110 * k * dt;
         const n = Math.floor(this.splashAcc);
         this.splashAcc -= n;
-        this.splash.emit(this.tmp.set(lip.x + vel.x * t, cfg.basinLevel, 0), n, [0.4, 1.4], [0.0008, 0.003], new THREE.Vector3(vel.x * 0.3, 0, 0));
+        this.splash.emit(this.tmp.set(lip.x + vel.x * t, cfg.basinLevel, 0), n, [0.2, 0.6], [0.0006, 0.0018], new THREE.Vector3(vel.x * 0.2, 0, 0));
         this.floating?.push(this.tmp.set(lip.x + vel.x * t, cfg.basinLevel, 0), 6 * k, dt);
         this.overflow?.feed(sp.flow, dt);
       }
