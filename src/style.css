@@ -1,0 +1,67 @@
+html,
+body {
+  margin: 0;
+  height: 100%;
+  overflow: hidden;
+  background: #0d120c;
+  color: #e8ecdf;
+  font-family: system-ui, 'Segoe UI', 'Yu Gothic UI', sans-serif;
+}
+
+#view {
+  display: block;
+  width: 100vw;
+  height: 100vh;
+}
+
+#hud {
+  position: fixed;
+  left: 8px;
+  bottom: 8px;
+  padding: 4px 8px;
+  border-radius: 4px;
+  background: rgb(0 0 0 / 0.45);
+  font: 12px/1.4 ui-monospace, Consolas, monospace;
+  white-space: pre;
+  pointer-events: none;
+}
+
+#start {
+  position: fixed;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  background: rgb(0 0 0 / 0.35);
+  cursor: pointer;
+}
+
+#start[hidden],
+#fatal[hidden] {
+  display: none;
+}
+
+.start-inner {
+  text-align: center;
+  user-select: none;
+}
+
+.start-title {
+  font-size: 40px;
+  letter-spacing: 0.3em;
+}
+
+.start-hint {
+  margin-top: 12px;
+  font-size: 14px;
+  opacity: 0.8;
+}
+
+#fatal {
+  position: fixed;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  padding: 24px;
+  background: #1a0e0e;
+  white-space: pre-wrap;
+}
