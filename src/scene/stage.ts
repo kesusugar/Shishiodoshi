@@ -27,16 +27,17 @@ export function buildStage(renderer: THREE.WebGLRenderer, scene: THREE.Scene, se
   scene.environmentIntensity = season.ambient.envIntensity;
 
   const sun = new THREE.DirectionalLight(season.sun.color, season.sun.intensity);
-  sun.position.copy(env.uSunDir.value).multiplyScalar(3);
+  sun.position.copy(env.uSunDir.value).multiplyScalar(6); // far enough that the leaves overhead fit in its shadow camera
   sun.castShadow = true;
-  sun.shadow.mapSize.set(2048, 2048);
+  // wide enough that the dappled light (render/canopy.ts) covers all the ground in view before the haze
+  sun.shadow.mapSize.set(3072, 3072);
   const s = sun.shadow.camera;
-  s.left = -0.9;
-  s.right = 0.9;
-  s.top = 0.9;
-  s.bottom = -0.9;
+  s.left = -2.2;
+  s.right = 2.2;
+  s.top = 2.2;
+  s.bottom = -2.2;
   s.near = 0.5;
-  s.far = 6;
+  s.far = 12;
   sun.shadow.bias = -0.0003;
   sun.shadow.normalBias = 0.004;
   sun.shadow.radius = 3;

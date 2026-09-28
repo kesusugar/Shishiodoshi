@@ -5,6 +5,7 @@ import { waitForStart } from './audio/startGate';
 import { SimGraph } from './debug/graph';
 import { gpuName, Hud } from './debug/hud';
 import { probe } from './debug/probe';
+import { Canopy } from './render/canopy';
 import { Post } from './render/post';
 import { BasinWater } from './render/water/basinWater';
 import { SimView } from './render/simView';
@@ -55,9 +56,11 @@ if (capture) hudEl.hidden = true;
 const season = defaultSeason;
 const scene = new THREE.Scene();
 const stage = buildStage(renderer, scene, season);
-const world = buildShishiodoshi(season, stage.env);
+const canopy = new Canopy();
+if (!off.has('canopy')) scene.add(canopy.mesh);
+const world = buildShishiodoshi(season, stage.env, canopy.uniforms);
 scene.add(world.root);
-const water = new BasinWater(renderer, { ...world.basin, wind: season.wind }, stage.env);
+const water = new BasinWater(renderer, { ...world.basin, wind: season.wind }, stage.env, canopy.uniforms);
 if (!off.has('water')) scene.add(water.mesh);
 
 // The simulation, and what it moves
@@ -132,6 +135,7 @@ renderer.setAnimationLoop((timestamp) => {
   audio?.send(sim, pending, sim.state.time);
   pending.length = 0;
   simView.update(stepper.alpha, dt);
+  canopy.update(sim.state.time, season.wind);
   if (!off.has('water')) water.update(dt);
   controls.update();
   if (off.has('dof')) renderer.render(scene, camera);

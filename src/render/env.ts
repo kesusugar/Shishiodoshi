@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import type { Season } from '../scene/seasons';
+import { CANOPY_GLSL, type Canopy } from './canopy';
 
 /**
  * The surroundings, seen out of focus as in ref2: a garden of sunlit greenery with bright bokeh where
@@ -137,16 +138,26 @@ export function bakeEnvironment(renderer: THREE.WebGLRenderer, uniforms: EnvUnif
 
 /**
  * Fade a standard material into the surroundings with distance, so the ground has no visible edge
- * and dissolves into the same out-of-focus garden as the backdrop.
+ * and dissolves into the same out-of-focus garden as the backdrop. Beyond the reach of the sun's
+ * shadow map the leaves' dappling is taken straight from the canopy texture, so it carries on.
  */
-export function addGardenFog(mat: THREE.Material, uniforms: EnvUniforms, near: number, far: number): void {
+export function addGardenFog(mat: THREE.Material, uniforms: EnvUniforms, near: number, far: number, canopy: Canopy['uniforms']): void {
   mat.onBeforeCompile = (sh) => {
-    Object.assign(sh.uniforms, uniforms);
+    Object.assign(sh.uniforms, uniforms, canopy);
     sh.vertexShader = sh.vertexShader
       .replace('#include <common>', '#include <common>\nvarying vec3 vGardenPos;')
       .replace('#include <worldpos_vertex>', '#include <worldpos_vertex>\nvGardenPos = (modelMatrix * vec4(transformed, 1.0)).xyz;');
     sh.fragmentShader = sh.fragmentShader
-      .replace('#include <common>', '#include <common>\nvarying vec3 vGardenPos;\n' + ENV_GLSL)
+      .replace('#include <common>', '#include <common>\nvarying vec3 vGardenPos;\n' + ENV_GLSL + CANOPY_GLSL)
+      .replace(
+        '#include <lights_fragment_end>',
+        `#include <lights_fragment_end>
+        #if NUM_DIR_LIGHT_SHADOWS > 0
+          vec3 gsc = vDirectionalShadowCoord[0].xyz / vDirectionalShadowCoord[0].w;
+          float inMap = smoothstep(0.0, 0.06, min(min(gsc.x, gsc.y), min(1.0 - gsc.x, 1.0 - gsc.y)));
+          reflectedLight.directDiffuse *= mix(canopyLight(vGardenPos, uSunDir), 1.0, inMap);
+        #endif`,
+      )
       .replace(
         '#include <tonemapping_fragment>',
         `float gardenK = smoothstep(${near.toFixed(3)}, ${far.toFixed(3)}, length(vGardenPos - cameraPosition));

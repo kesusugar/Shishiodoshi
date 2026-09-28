@@ -13,6 +13,7 @@
  */
 import * as THREE from 'three';
 import { GPUComputationRenderer, type Variable } from 'three/addons/misc/GPUComputationRenderer.js';
+import { CANOPY_GLSL, type Canopy } from '../canopy';
 import { ENV_GLSL, type EnvUniforms } from '../env';
 
 export interface BasinWaterSpec {
@@ -85,6 +86,7 @@ export class BasinWater {
     private readonly renderer: THREE.WebGLRenderer,
     private readonly spec: BasinWaterSpec,
     env: EnvUniforms,
+    canopy: Canopy['uniforms'],
   ) {
     const RB = spec.bowlRadius;
     this.waves.forEach((W, i) => this.waveU.set([W.kx, W.kz, W.w, W.ph], i * 4));
@@ -118,6 +120,7 @@ export class BasinWater {
 
     this.U = {
       ...env,
+      ...canopy,
       uTime: { value: 0 },
       uW: { value: this.waveU },
       uA: { value: this.ampU },
@@ -192,6 +195,7 @@ export class BasinWater {
         blendDst: THREE.OneFactor,
         vertexShader:
           ENV_GLSL +
+          CANOPY_GLSL +
           COMMON +
           /* glsl */ `
           varying vec2 vSurf; varying vec3 vI;
@@ -207,6 +211,8 @@ export class BasinWater {
             // the rim above the water shades the surface near the sunward wall
             float s = wallHit(P.xz, uSunDir.xz);
             if (P.y + uSunDir.y * s < RIM) vI *= 0.0;
+            // and the leaves overhead
+            vI *= canopyLight(P + vec3(uCenter.x, 0.0, uCenter.z), uSunDir);
             vSurf = position.xz;
             gl_Position = vec4(F.x / RB, F.z / RB, 0.0, 1.0);
           }`,
@@ -239,6 +245,7 @@ export class BasinWater {
           }`,
         fragmentShader:
           ENV_GLSL +
+          CANOPY_GLSL +
           COMMON +
           /* glsl */ `
           varying vec3 vPos;
@@ -261,6 +268,7 @@ export class BasinWater {
             vec3 e = q - t * u;   // back along the light to the surface
             float lit = length(e.xz) < RB ? 1.0 : 0.0;
             lit *= e.y + uSunDir.y * wallHit(e.xz, uSunDir.xz) < RIM ? 0.0 : 1.0;
+            lit *= canopyLight(e + vec3(uCenter.x, 0.0, uCenter.z), uSunDir);
             vec3 E = uSunCol * lit * max(dot(-t, n), 0.0) * exp(-ABSORB * u) * 0.9 + uAmb * 0.6 * exp(-ABSORB * depth * 1.5);
             vec3 alb = stoneAt(vec2(atan(q.z, q.x) * 0.6, q.y * 2.5)) * 0.8;
             return alb / PI * E;
@@ -284,7 +292,7 @@ export class BasinWater {
             float F = fresnel(-dot(d, n));
             vec3 rd = reflect(d, n);
             // reflection: the garden, the sun's glint, and the dark stone wall at low angles
-            vec3 refl = envColor(rd) + uSunCol * pow(max(dot(rd, uSunDir), 0.0), 1500.0) * 40.0;
+            vec3 refl = envColor(rd) + uSunCol * pow(max(dot(rd, uSunDir), 0.0), 1500.0) * 40.0 * canopyLight(vPos, uSunDir);
             float s = wallHit(lp.xz, rd.xz);
             if (lp.y + rd.y * s < RIM) refl = stoneAt(vec2(atan(lp.z, lp.x), 0.3)) * uAmb * 0.55;
             vec3 col = F * refl + (1.0 - F) * water(lp, refract(d, n, 1.0 / IOR));

@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import type { Canopy } from '../render/canopy';
 import { addGardenFog, type EnvUniforms } from '../render/env';
 import { mossyGround, weatheredWood } from '../render/textures';
 import { defaultConfig, kakei as kakeiCfg, type SimConfig } from '../sim/config';
@@ -33,7 +34,7 @@ export interface ShishiodoshiScene {
   basin: { center: THREE.Vector3; bowlRadius: number; floorY: number; waterLevel: number; rimY: number; stone: THREE.Texture };
 }
 
-export function buildShishiodoshi(season: Season, env: EnvUniforms): ShishiodoshiScene {
+export function buildShishiodoshi(season: Season, env: EnvUniforms, canopy: Canopy['uniforms']): ShishiodoshiScene {
   const root = new THREE.Group();
   const rand = mulberry32(3);
   const { bamboo } = season;
@@ -41,7 +42,7 @@ export function buildShishiodoshi(season: Season, env: EnvUniforms): Shishiodosh
   // Ground: moss and soil, mostly out of focus
   const groundMaps = mossyGround(21);
   const groundMat = new THREE.MeshStandardMaterial({ map: groundMaps.color, bumpMap: groundMaps.bump, bumpScale: 3, roughness: 1 });
-  addGardenFog(groundMat, env, 1.6, 5.0);
+  addGardenFog(groundMat, env, 1.6, 5.0, canopy);
   const ground = new THREE.Mesh(new THREE.CircleGeometry(12, 96), groundMat);
   ground.geometry.rotateX(-Math.PI / 2);
   const guv = ground.geometry.getAttribute('uv') as THREE.BufferAttribute;
