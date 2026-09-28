@@ -82,7 +82,7 @@ const graph = new SimGraph(document.body, params.has('debug'));
 const tipButton = document.querySelector<HTMLButtonElement>('#tip')!;
 tipButton.addEventListener('click', () => sim.topUp());
 if (capture) tipButton.hidden = true;
-if (!off.has('stream')) scene.add(simView.kakeiStream.mesh, simView.pour.mesh);
+if (!off.has('stream')) scene.add(simView.kakeiStream.mesh, simView.pour.mesh, simView.splash.mesh);
 
 const preset = cameraPresets[view] ?? cameraPresets.main;
 const camera = new THREE.PerspectiveCamera(preset.fov, 1, 0.01, 100);

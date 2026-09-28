@@ -4,6 +4,7 @@ import { mulberry32 } from '../scene/random';
 import type { ShishiodoshiScene } from '../scene/shishiodoshi';
 import type { EnvUniforms } from './env';
 import type { BasinWater } from './water/basinWater';
+import { Splash } from './water/splash';
 import { Stream } from './water/stream';
 import { TubeWater } from './water/tubeWater';
 
@@ -15,6 +16,8 @@ export class SimView {
   readonly kakeiStream: Stream;
   readonly pour: Stream;
   readonly tubeWater: TubeWater;
+  readonly splash: Splash;
+  private splashAcc = 0;
   private prevAngle: number;
   private readonly rand = mulberry32(9);
   private readonly tmp = new THREE.Vector3();
@@ -33,6 +36,7 @@ export class SimView {
     this.pour = new Stream(env, 0.8);
     this.pour.uFoam.value = 0.55;
     this.tubeWater = new TubeWater(cfg.tube, env, fleshColor);
+    this.splash = new Splash(env, basin, { center: new THREE.Vector3(cfg.basin.x, 0, 0), bowlRadius: cfg.basin.radius, level: cfg.basinLevel });
     world.tube.add(this.tubeWater.mesh);
     this.prevAngle = sim.state.angle;
   }
@@ -65,6 +69,11 @@ export class SimView {
         this.tmp.set(land.x + (this.rand() - 0.5) * 0.006, land.y, (this.rand() - 0.5) * 0.006);
         this.basin.addDrop(this.tmp, 0.004, -(0.6 + this.rand()) * 12 * dt);
       }
+      // and a few small drops thrown up
+      this.splashAcc += 25 * dt;
+      const n = Math.floor(this.splashAcc);
+      this.splashAcc -= n;
+      this.splash.emit(this.tmp.set(land.x, land.y, 0), n, [0.2, 0.7], [0.0004, 0.0012]);
     }
     this.tubeWater.update(out.surface, hit, st.time);
 
@@ -90,10 +99,16 @@ export class SimView {
           this.tmp.set(lip.x + vel.x * t + (this.rand() - 0.5) * 0.02, cfg.basinLevel, (this.rand() - 0.5) * 0.02);
           this.basin.addDrop(this.tmp, 0.008 + 0.01 * k, -(0.5 + this.rand()) * 35 * k * dt);
         }
+        // a spray of drops, thrown onward in the direction the water was going
+        this.splashAcc += 900 * k * dt;
+        const n = Math.floor(this.splashAcc);
+        this.splashAcc -= n;
+        this.splash.emit(this.tmp.set(lip.x + vel.x * t, cfg.basinLevel, 0), n, [0.4, 1.4], [0.0008, 0.003], new THREE.Vector3(vel.x * 0.3, 0, 0));
       }
     } else {
       this.pour.set(this.tmp, this.tmp, 0, 0, 0);
     }
+    this.splash.update(dt);
   }
 
   private fallTime(y0: number, vy: number, y1: number): number {
