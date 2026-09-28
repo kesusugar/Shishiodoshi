@@ -14,7 +14,16 @@
       "Bash(git log*)",
       "Bash(git add *)",
       "Bash(git commit *)",
-      "Bash(git pull*)"
+      "Bash(git pull*)",
+      "Bash(git push)",
+      "Bash(git push -q*)",
+      "Bash(git push -u origin claude/*)",
+      "Bash(git fetch*)",
+      "Bash(git checkout *)",
+      "Bash(git merge *)",
+      "Bash(git -c user.name=Claude -c user.email=noreply@anthropic.com commit *)",
+      "Bash(curl -s https://api.github.com/repos/kesusugar/Shishiodoshi/*)",
+      "Bash(curl -s \"https://api.github.com/repos/kesusugar/Shishiodoshi/*)"
     ]
   }
 }
