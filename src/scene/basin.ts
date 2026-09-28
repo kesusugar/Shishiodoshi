@@ -22,16 +22,15 @@ export function buildBasin(season: Season): THREE.Mesh {
   // profile from the ground up the outside, over the rim, down the bowl wall, across the floor:
   // [radius, height, how much the outside noise applies, moss likelihood]
   const profile: [number, number, number, number][] = [
-    [RO * 0.93, 0.0, 1, 0],
-    [RO * 1.0, 0.06, 1, 0],
-    [RO * 1.03, 0.16, 1, 0],
-    [RO * 1.01, 0.26, 1, 0.3],
-    [RO * 0.97, 0.33, 1, 0.8],
-    [RO * 0.9, H - 0.004, 0.8, 1],
-    [RO * 0.8, H, 0.5, 1],
-    [RB + 0.03, H - 0.002, 0.25, 0.9],
-    [RB + 0.006, H - 0.012, 0.05, 0.5],
-    [RB, H - 0.03, 0, 0.1],
+    [RO * 0.9, 0.0, 1, 0],
+    [RO * 1.0, H * 0.2, 1, 0],
+    [RO * 1.02, H * 0.55, 1, 0.1],
+    [RO * 0.98, H * 0.85, 1, 0.5],
+    [RO * 0.9, H * 0.97, 0.9, 0.9],
+    [RO * 0.78, H, 0.6, 1],
+    [RB + 0.035, H - 0.003, 0.25, 0.9],
+    [RB + 0.008, H - 0.01, 0.05, 0.5],
+    [RB, H - 0.025, 0, 0.1],
     [RB, floorY + 0.02, 0, 0],
     [RB - 0.02, floorY, 0, 0],
     [RB * 0.5, floorY, 0, 0],
@@ -60,8 +59,11 @@ export function buildBasin(season: Season): THREE.Mesh {
     for (const p of pts) {
       // lumpy outside: large bulges plus smaller knobs, tiling around the circle
       const bump = (n.fbm((j / SEG) * 6, p.y * 9, 4, 6, 1e6) - 0.5) * 0.09 + (n.value((j / SEG) * 3, p.y * 2, 3, 1e6) - 0.5) * 0.06;
-      const oval = 1 + 0.08 * Math.cos(2 * a + 0.6) * p.k; // not quite round
-      const r = p.r * (1 + bump * p.k * 1.6) * oval;
+      // a rounded-square footprint, like a natural block of stone (ref1), not a turned pot
+      const ar = a + 0.45, e = 2.6;
+      const square = Math.pow(Math.pow(Math.abs(Math.cos(ar)), e) + Math.pow(Math.abs(Math.sin(ar)), e), -1 / e);
+      const shape = 1 + (square * (1 + 0.07 * Math.cos(2 * a + 0.6)) - 1) * p.k;
+      const r = p.r * (1 + bump * p.k * 2.0) * shape;
       const y = p.y + (p.k > 0.4 && p.y > H - 0.01 ? (n.fbm((j / SEG) * 8, 3.3, 3, 8, 1e6) - 0.5) * 0.012 : 0);
       pos.push(r * ca, y, r * sa);
       uv.push((j / SEG) * 4, p.s * 5);

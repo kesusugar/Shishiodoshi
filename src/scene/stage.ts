@@ -8,7 +8,7 @@ import type { Season } from './seasons';
  */
 export const cameraPresets = {
   main: { position: new THREE.Vector3(0.02, 0.82, 1.3), target: new THREE.Vector3(0.02, 0.46, 0.0), fov: 40 },
-  close: { position: new THREE.Vector3(0.36, 0.8, 0.72), target: new THREE.Vector3(0.07, 0.52, 0.0), fov: 40 },
+  close: { position: new THREE.Vector3(0.34, 0.74, 0.7), target: new THREE.Vector3(0.07, 0.44, 0.0), fov: 42 },
   mouth: { position: new THREE.Vector3(0.22, 0.8, 0.36), target: new THREE.Vector3(0.0, 0.66, 0.0), fov: 40 },
   wide: { position: new THREE.Vector3(0.1, 1.1, 1.9), target: new THREE.Vector3(0.0, 0.5, 0.0), fov: 40 },
 } as const;
