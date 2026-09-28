@@ -1,0 +1,23 @@
+<!doctype html>
+<html lang="ja">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>ししおどし</title>
+    <link rel="icon" href="data:," />
+    <link rel="stylesheet" href="/src/style.css" />
+  </head>
+  <body>
+    <canvas id="view"></canvas>
+    <div id="hud"></div>
+    <button id="tip" type="button" title="筒を水でいっぱいにして、すぐ倒します">すぐ倒す</button>
+    <div id="start" hidden>
+      <div class="start-inner">
+        <div class="start-title">ししおどし</div>
+        <div class="start-hint">クリックで開始（音が鳴ります）</div>
+      </div>
+    </div>
+    <div id="fatal" hidden></div>
+    <script type="module" src="/src/main.ts"></script>
+  </body>
+</html>
