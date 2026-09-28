@@ -8,7 +8,7 @@ import * as THREE from 'three';
  * a golden-angle spiral. A sample only spreads over pixels its own blur circle reaches, so a sharp
  * foreground is not smeared by the background behind it.
  */
-const TAPS = 48;
+const TAPS = 28;
 
 export class Post {
   private rt: THREE.WebGLRenderTarget;
@@ -26,6 +26,8 @@ export class Post {
   private win = 0;
   private winFrames = 0;
   private good = 0;
+  /** Seconds to wait after a change: resizing reallocates the target, which costs a frame. */
+  private hold = 0;
 
   constructor(
     private readonly renderer: THREE.WebGLRenderer,
@@ -62,7 +64,7 @@ export class Post {
           float wsum = 1.0;
           // in focus: nothing to gather. Otherwise as many taps as the blur circle needs (by its area).
           float px = c0 / uPixel;
-          int n = px < 0.75 ? 1 : int(clamp(px * px * 0.8, 8.0, ${TAPS}.0));
+          int n = px < 0.75 ? 1 : int(clamp(px * px * 0.5, 8.0, ${TAPS}.0));
           for (int i = 1; i < ${TAPS}; i++) {
             if (i >= n) break;
             float fi = float(i);
@@ -92,7 +94,11 @@ export class Post {
   private makeTarget(w: number, h: number): THREE.WebGLRenderTarget {
     const depth = new THREE.DepthTexture(w, h);
     depth.type = THREE.FloatType;
-    return new THREE.WebGLRenderTarget(w, h, { type: THREE.HalfFloatType, samples: 4, depthTexture: depth });
+    // no MSAA: with it, this GPU (Iris Xe) stalls for 80-100 ms every few frames; the depth of field
+    // softens most edges anyway
+    // no MSAA: with it this GPU (Iris Xe) stalls for 80-100 ms every few frames once the garden is
+    // in view; the depth of field softens most edges anyway
+    return new THREE.WebGLRenderTarget(w, h, { type: THREE.HalfFloatType, samples: 0, depthTexture: depth });
   }
 
   setSize(w: number, h: number): void {
@@ -115,6 +121,10 @@ export class Post {
    * late, draw the scene at a lower resolution; if they have been on time for a while, go back up.
    */
   adapt(frameTime: number): void {
+    if (this.hold > 0) {
+      this.hold -= frameTime;
+      return;
+    }
     this.win += frameTime;
     this.winFrames++;
     if (this.win < 1) return;
@@ -132,6 +142,7 @@ export class Post {
     if (Math.abs(next - this.scale) > 0.005) {
       this.scale = next;
       this.resizeTarget();
+      this.hold = 3;
     }
   }
 

@@ -63,7 +63,7 @@ export function buildGarden(season: Season, _canopy: Canopy['uniforms'], basin: 
         n++;
       }
       mesh.count = n;
-      mesh.castShadow = true;
+      // too small to cast shadows that matter; they still receive them
       mesh.receiveShadow = true;
       root.add(mesh);
     }
@@ -123,7 +123,6 @@ export function buildGarden(season: Season, _canopy: Canopy['uniforms'], basin: 
         n++;
       }
     }
-    mesh.castShadow = true;
     mesh.receiveShadow = true;
     root.add(mesh);
   }
