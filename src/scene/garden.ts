@@ -309,7 +309,7 @@ export function buildGarden(season: Season, _canopy: Canopy['uniforms'], basin: 
     part(new THREE.CylinderGeometry(0.14, 0.1, 0.06, 6), 0.51);
     // the fire box, with a warm glow in its windows
     // (an orange, not white, glow; crossed by the lattice of the paper window)
-    const glow = new THREE.MeshStandardMaterial({ color: '#2a2016', emissive: new THREE.Color('#ff9a3a'), emissiveIntensity: 1.05 });
+    const glow = new THREE.MeshStandardMaterial({ color: '#2a2016', emissive: new THREE.Color('#ff9a3a'), emissiveIntensity: 1.05 + 3.2 * (season.lamp ?? 0) });
     const lattice = new THREE.MeshStandardMaterial({ color: '#1a130d', roughness: 0.9 });
     part(new THREE.BoxGeometry(0.17, 0.17, 0.17), 0.63);
     part(new THREE.BoxGeometry(0.1, 0.1, 0.175), 0.63, glow);
@@ -318,6 +318,12 @@ export function buildGarden(season: Season, _canopy: Canopy['uniforms'], basin: 
     const roof = part(new THREE.ConeGeometry(0.26, 0.14, 6), 0.78);
     roof.rotation.y = Math.PI / 6;
     part(new THREE.SphereGeometry(0.04, 12, 8), 0.87);
+    // by night the lantern is the one warm light: it lights the stones and the ground around it
+    if ((season.lamp ?? 0) > 0.3) {
+      const light = new THREE.PointLight('#ff9a4a', 5 * (season.lamp ?? 0), 3.2, 1.6);
+      light.position.set(0, 0.63, 0.1);
+      lantern.add(light);
+    }
     lantern.position.set(-1.15, 0, -0.95);
     lantern.rotation.y = 0.4;
     root.add(lantern);

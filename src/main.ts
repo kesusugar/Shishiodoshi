@@ -17,7 +17,7 @@ import { Falling, HeroFall } from './render/falling';
 import { petalGeometry, petalTexture } from './scene/blossom';
 import { buildGarden } from './scene/garden';
 import { buildShishiodoshi } from './scene/shishiodoshi';
-import { pickSeason, rememberSeason, saveRound, savedRound, seasonNames, seasons, type Season, type SeasonName } from './scene/seasons';
+import { atTime, pickSeason, pickTime, rememberSeason, saveRound, savedRound, seasonNames, seasons, type Season, type SeasonName, type TimeName } from './scene/seasons';
 import { disposeTree } from './scene/dispose';
 import { setMossColor } from './scene/rockMaterial';
 import { setSnow, tubeSnow } from './render/snow';
@@ -65,7 +65,7 @@ try {
 renderer.setPixelRatio(Math.min(window.devicePixelRatio, quality.maxPixelRatio));
 renderer.outputColorSpace = THREE.SRGBColorSpace;
 renderer.toneMapping = THREE.AgXToneMapping;
-renderer.toneMappingExposure = pickSeason(params).exposure; // summer 1.2: ref3 is a bright photo, mid-tones up, the sun's highlights still held by AgX
+renderer.toneMappingExposure = atTime(pickSeason(params), pickTime(params)).exposure; // summer 1.2: ref3 is a bright photo, mid-tones up, the sun's highlights still held by AgX
 renderer.shadowMap.enabled = !off.has('shadow');
 renderer.shadowMap.type = quality.softShadows ? THREE.PCFSoftShadowMap : THREE.PCFShadowMap;
 // on phones the shadow map is redrawn every few frames (the sun and the leaves overhead move slowly)
@@ -76,7 +76,8 @@ probe.gpu = gpuName(renderer.getContext() as WebGL2RenderingContext);
 const hud = new Hud(hudEl, `${probe.gpu}  [${quality.name}]`);
 if (capture) hudEl.hidden = true;
 
-let season: Season = pickSeason(params);
+let timeOfDay: TimeName = pickTime(params);
+let season: Season = atTime(pickSeason(params), timeOfDay);
 setSnow(season.snow);
 probe.season = season.name;
 const scene = new THREE.Scene();
@@ -340,9 +341,11 @@ if (manual) {
 const fadeEl = document.querySelector<HTMLElement>('#fade')!;
 let switching = false;
 const wait = (ms: number) => new Promise((r) => setTimeout(r, ms));
-async function changeSeason(name: SeasonName, instant = false): Promise<void> {
-  const next = seasons[name];
-  if (!next || switching || next.name === season.name) return;
+async function changeSeason(name: SeasonName, instant = false, time: TimeName = timeOfDay): Promise<void> {
+  const base = seasons[name];
+  if (!base || switching || (name === season.name && time === timeOfDay)) return;
+  const next = atTime(base, time);
+  timeOfDay = time;
   switching = true;
   if (!instant) {
     fadeEl.style.opacity = '1';
@@ -365,7 +368,7 @@ async function changeSeason(name: SeasonName, instant = false): Promise<void> {
   buildSeasonLife();
   probe.season = next.name;
   rememberSeason(next.name);
-  seasonBar?.select(next.name);
+  seasonBar?.select(next.name, time);
   audio?.setSeason(next.name, next.wind);
   if (!instant) {
     await new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r)));
@@ -399,6 +402,8 @@ const seasonBar = capture
       },
       setRound,
       false,
+      timeOfDay,
+      (t) => void changeSeason(season.name, false, t),
     );
 if (seasonBar) document.body.append(seasonBar.el);
 if (seasonBar && savedRound()) setRound(true);

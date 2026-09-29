@@ -2,9 +2,11 @@ import { autumn } from './autumn';
 import { spring } from './spring';
 import { summer } from './summer';
 import { winter } from './winter';
-import type { Season, SeasonName } from './types';
+import type { Season, SeasonName, TimeName } from './types';
+import { timeNames } from './time';
 
-export type { Season, SeasonName };
+export type { Season, SeasonName, TimeName };
+export { atTime, timeLabels, timeNames } from './time';
 export type { CanopyStyle, FallingStyle, GardenStyle } from './types';
 
 /** The seasons that exist so far, in the order of the buttons (spring, summer, autumn, winter). */
@@ -51,4 +53,10 @@ export function rememberSeason(name: SeasonName): void {
   } catch {
     // private mode: the choice lasts for this visit only
   }
+}
+
+/** ?time=day|dusk|night; otherwise day (the hour is not remembered: a visit begins by day). */
+export function pickTime(params: URLSearchParams): TimeName {
+  const asked = params.get('time');
+  return timeNames.includes(asked as TimeName) ? (asked as TimeName) : 'day';
 }
