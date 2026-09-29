@@ -5,6 +5,7 @@ import type { Season } from './seasons';
 import { leafGeometry, mapleLeafTexture } from './leaves';
 import { mossyRockMaterial } from './rockMaterial';
 import { rockGeometry } from './shishiodoshi';
+import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 
 /**
  * The garden around the shishi-odoshi (docs/reference/ref3-ideal.png): wet gravel at its foot, moss-
@@ -131,33 +132,92 @@ export function buildGarden(season: Season, _canopy: Canopy['uniforms'], basin: 
     root.add(mesh);
   }
 
-  // ---- a maple branch hanging into the foreground on the right (out of focus), and one behind
+  // ---- a maple branch hanging into the foreground on the right (out of focus, as in ref3): a
+  // drooping bough with side twigs, the leaves in opposite pairs along them and fanned at their tips
   const mapleTex = mapleLeafTexture();
   mapleTex.anisotropy = 4;
   const leafMat = new THREE.MeshStandardMaterial({ map: mapleTex, alphaTest: 0.5, side: THREE.DoubleSide, roughness: 0.55 });
-  leafMat.emissive = new THREE.Color('#081004');
-  const branches: THREE.InstancedMesh[] = [];
-  for (const [bx, by, bz, spread, count] of [
-    [0.75, 0.95, 0.55, 0.35, 320],
-  ] as const) {
-    const mesh = new THREE.InstancedMesh(leafGeometry(0.055), leafMat, count);
-    const m = new THREE.Matrix4(), q = new THREE.Quaternion(), e = new THREE.Euler(), p = new THREE.Vector3(), s = new THREE.Vector3();
-    const col = new THREE.Color(), leaf = new THREE.Color(season.foliage.leaf);
+  translucentLeaves(leafMat, new THREE.Color(season.foliage.leafLit));
+  const twigMat = new THREE.MeshStandardMaterial({ color: '#3a2a1d', roughness: 0.85 });
+  const branches: THREE.Group[] = [];
+  {
+    // it comes in from beyond the right edge of the main view and droops down its right side
+    const base = new THREE.Vector3(1.0, 1.02, 0.62);
+    const bough = new THREE.CatmullRomCurve3([
+      base.clone(),
+      new THREE.Vector3(0.8, 0.88, 0.6),
+      new THREE.Vector3(0.64, 0.72, 0.57),
+      new THREE.Vector3(0.53, 0.56, 0.55),
+    ]);
+    const group = new THREE.Group();
+    group.position.copy(base);
+    const tubes: THREE.BufferGeometry[] = [new THREE.TubeGeometry(bough, 40, 0.007, 6)];
+    const twigs: THREE.CatmullRomCurve3[] = [];
+    for (let i = 0; i < 16; i++) {
+      const t = 0.08 + (i / 15) * 0.9 + (rand() - 0.5) * 0.04;
+      const p0 = bough.getPointAt(Math.min(t, 1));
+      const side = i % 2 === 0 ? 1 : -1;
+      const len = 0.1 + rand() * 0.12;
+      const dir = new THREE.Vector3(-0.4 - rand() * 0.4, -0.35 - rand() * 0.4, side * (0.5 + rand() * 0.4)).normalize();
+      const p2 = p0.clone().addScaledVector(dir, len);
+      const p1 = p0.clone().lerp(p2, 0.5).add(new THREE.Vector3(0, 0.02, 0));
+      const twig = new THREE.CatmullRomCurve3([p0, p1, p2]);
+      twigs.push(twig);
+      tubes.push(new THREE.TubeGeometry(twig, 8, 0.0028, 5));
+    }
+    twigs.push(bough);
+    const twigMesh = new THREE.Mesh(mergeGeometries(tubes), twigMat);
+    twigMesh.position.sub(base);
+    twigMesh.receiveShadow = true;
+    group.add(twigMesh);
+
+    // leaves: pairs along each twig and a fan at its tip, stalks toward the twig
+    const spots: { p: THREE.Vector3; along: THREE.Vector3; side: number }[] = [];
+    for (const tw of twigs) {
+      const n = tw === bough ? 8 : 5;
+      for (let k = 1; k <= n; k++) {
+        const t = k / (n + 1);
+        const p = tw.getPointAt(t), along = tw.getTangentAt(t);
+        spots.push({ p, along, side: 1 }, { p, along, side: -1 });
+      }
+      if (tw !== bough) {
+        const tip = tw.getPointAt(1), along = tw.getTangentAt(1);
+        for (let f = 0; f < 7; f++) spots.push({ p: tip, along, side: (f - 3) / 3 });
+      }
+    }
+    const count = spots.length;
+    const mesh = new THREE.InstancedMesh(leafGeometry(0.065), leafMat, count);
+    const m = new THREE.Matrix4(), q = new THREE.Quaternion(), q2 = new THREE.Quaternion(), p = new THREE.Vector3(), s = new THREE.Vector3();
+    const col = new THREE.Color(), leaf = new THREE.Color(season.foliage.leaf), lit = new THREE.Color(season.foliage.leafLit);
+    const up = new THREE.Vector3(0, 1, 0), out = new THREE.Vector3(), zAxis = new THREE.Vector3(0, 0, 1);
+    const normal = new THREE.Vector3(), tipNow = new THREE.Vector3(), tipWant = new THREE.Vector3();
     for (let i = 0; i < count; i++) {
-      // leaves along a drooping arc of twigs
-      const t = rand();
-      p.set(bx - t * spread * Math.sign(bx) + (rand() - 0.5) * 0.18, by - t * t * 0.35 + (rand() - 0.5) * 0.12, bz + (rand() - 0.5) * 0.25);
-      q.setFromEuler(e.set(-1.2 + rand() * 0.8, rand() * 6.28, (rand() - 0.5) * 0.8));
-      s.setScalar(0.7 + rand() * 0.6);
+      const sp = spots[i];
+      // the leaf hangs out to its side of the twig on a stalk; its blade faces up and toward the open
+      // side of the garden (the camera), each at its own angle
+      out.crossVectors(sp.along, up).normalize().multiplyScalar(sp.side).addScaledVector(sp.along, 0.5).addScaledVector(up, -0.4).normalize();
+      p.copy(sp.p).addScaledVector(out, 0.035 + rand() * 0.02).sub(base);
+      normal.set((rand() - 0.5) * 1.2, 0.7 + rand() * 0.3, 0.6 + rand() * 0.4).normalize();
+      q.setFromUnitVectors(zAxis, normal);
+      // point its tip away from the twig (as far as the blade's plane allows)
+      tipNow.set(0, 1, 0).applyQuaternion(q);
+      tipWant.copy(out).addScaledVector(normal, -out.dot(normal)).normalize();
+      q2.setFromUnitVectors(tipNow, tipWant);
+      q.premultiply(q2);
+      q2.setFromAxisAngle(normal.applyQuaternion(q2), (rand() - 0.5) * 0.8);
+      q.premultiply(q2);
+      s.setScalar(0.75 + rand() * 0.5);
       mesh.setMatrixAt(i, m.compose(p, q, s));
-      // leaves vary: some catch the light, most are deeper green; a few already turning
-      col.copy(leaf).multiplyScalar(0.6 + rand() * 0.9);
-      if (rand() < 0.04) col.set('#b8761c');
+      // deep greens, some paler where young; a few already turning
+      col.copy(leaf).lerp(lit, rand() * rand() * 0.6).multiplyScalar(0.55 + rand() * 0.55);
+      if (rand() < 0.03) col.set('#b8761c');
       mesh.setColorAt(i, col);
     }
-    // out of focus in front of the camera: its shadow would cost more than it shows
-    branches.push(mesh);
-    root.add(mesh);
+    // it takes the dappled shadow (so it is not evenly lit); casting its own would cost more than it shows
+    mesh.receiveShadow = true;
+    group.add(mesh);
+    branches.push(group);
+    root.add(group);
   }
 
   // ---- trees behind (out of focus they give the backdrop real depth), and a stone lantern
@@ -224,8 +284,9 @@ export function buildGarden(season: Season, _canopy: Canopy['uniforms'], basin: 
     update(time: number, wind: number) {
       // branches sway with the wind
       for (const [i, b] of branches.entries()) {
-        b.rotation.z = wind * 0.03 * Math.sin(time * 0.9 + i) + wind * 0.015 * Math.sin(time * 2.3 + i * 2);
-        b.rotation.x = wind * 0.02 * Math.sin(time * 0.7 + i * 1.7);
+        // about where the bough comes in, so its tip swings most
+        b.rotation.z = wind * 0.06 * Math.sin(time * 0.9 + i) + wind * 0.03 * Math.sin(time * 2.3 + i * 2);
+        b.rotation.x = wind * 0.04 * Math.sin(time * 0.7 + i * 1.7);
       }
     },
   };
@@ -269,3 +330,24 @@ function fernFrond(rand: () => number): THREE.BufferGeometry {
   return g;
 }
 
+
+/**
+ * Leaves are thin: sunlight on their far side shows through, yellow-green (ref3's backlit maple).
+ * Added to each direct light as diffuse light arriving through the blade, so it keeps that light's
+ * shadow (a leaf in the shade of another does not glow).
+ */
+function translucentLeaves(mat: THREE.MeshStandardMaterial, tint: THREE.Color): void {
+  mat.onBeforeCompile = (sh) => {
+    sh.uniforms.uLeafTint = { value: tint };
+    sh.fragmentShader = sh.fragmentShader
+      .replace('#include <common>', '#include <common>\nuniform vec3 uLeafTint;')
+      .replace(
+        '#include <lights_fragment_begin>',
+        THREE.ShaderChunk.lights_fragment_begin.replaceAll(
+          'RE_Direct( directLight, geometryPosition, geometryNormal, geometryViewDir, geometryClearcoatNormal, material, reflectedLight );',
+          'RE_Direct( directLight, geometryPosition, geometryNormal, geometryViewDir, geometryClearcoatNormal, material, reflectedLight );\n' +
+            'reflectedLight.directDiffuse += uLeafTint * material.diffuseColor * directLight.color * max( 0.0, -dot( geometryNormal, directLight.direction ) ) * 0.9;',
+        ),
+      );
+  };
+}

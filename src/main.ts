@@ -49,7 +49,7 @@ try {
 renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
 renderer.outputColorSpace = THREE.SRGBColorSpace;
 renderer.toneMapping = THREE.AgXToneMapping;
-renderer.toneMappingExposure = 1.0;
+renderer.toneMappingExposure = 1.2; // ref3 is a bright summer photo: mid-tones up, the sun's highlights still held by AgX
 renderer.shadowMap.enabled = !off.has('shadow');
 renderer.shadowMap.type = THREE.PCFSoftShadowMap;
 
