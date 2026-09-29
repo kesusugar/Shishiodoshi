@@ -22,6 +22,8 @@ export class SimView {
   floating: FloatingLeaves | null = null;
   overflow: Overflow | null = null;
   private splashAcc = 0;
+  private sprayAcc = 0;
+  private readonly sprayVel = new THREE.Vector3();
   private prevAngle: number;
   private readonly rand = mulberry32(9);
   private readonly tmp = new THREE.Vector3();
@@ -41,6 +43,9 @@ export class SimView {
     this.kakeiStream.set(new THREE.Vector3(spout.x, spout.y, 0), new THREE.Vector3(velocity.x, velocity.y, 0), flow, 0, 0);
     this.pour = new Stream(env, 0.8);
     this.pour.uFoam.value = 0.55;
+    // the pour leaves the lip as a sheet that tears into strands and then drops a hand's width down
+    this.pour.uBreak.value = 0.085;
+    this.pour.uTear.value = 0.9;
     this.tubeWater = new TubeWater(cfg.tube, env, fleshColor);
     this.splash = new Splash(env, basin, { center: new THREE.Vector3(cfg.basin.x, 0, 0), bowlRadius: cfg.basin.radius, level: cfg.basinLevel });
     world.tube.add(this.tubeWater.mesh);
@@ -102,8 +107,22 @@ export class SimView {
       const vel = axis.multiplyScalar(Math.max(sp.speed, 0.2)).add(new THREE.Vector3(-ry * st.omega, rx * st.omega, 0).multiplyScalar(0.4));
       vel.y = Math.min(vel.y, 0.05);
       const endY = this.landsInBasin(lip, vel) ? cfg.basinLevel : 0;
-      this.pour.set(lip, vel, sp.flow, endY, endY);
+      this.pour.set(lip, vel, sp.flow, endY, endY, sp.width);
       this.pour.update(st.time);
+      // spray shed where the sheet tears: drops leave its edges and fly on beside it
+      {
+        const k = Math.min(1, sp.flow / 4e-4);
+        this.sprayAcc += 420 * k * dt;
+        const n = Math.floor(this.sprayAcc);
+        this.sprayAcc -= n;
+        for (let i = 0; i < n; i++) {
+          const t = this.pour.uBreak.value * (0.6 + 0.9 * this.rand());
+          const side = (this.rand() - 0.5) * Math.max(sp.width, 0.01) * 0.7;
+          this.tmp.set(lip.x + vel.x * t, lip.y + vel.y * t - 4.905 * t * t, lip.z + side);
+          this.sprayVel.set(vel.x * (0.8 + 0.3 * this.rand()), vel.y - 9.81 * t, side * 4);
+          this.splash.launch(this.tmp, this.sprayVel, 0.0006 + 0.0012 * this.rand());
+        }
+      }
       // where it lands in the basin: a small, local disturbance at the impact point (a pour from a
       // few cm up is a gentle plunge, not a splash), stronger with more flow
       if (endY > 0) {

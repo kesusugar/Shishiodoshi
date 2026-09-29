@@ -27,8 +27,9 @@ export interface SimState {
 export interface SimOutputs {
   /** The water surface in the tube (TubeHydro's s and phi), or null when empty. */
   surface: { s: number; phi: number } | null;
-  /** Spill over the lip: flow (m^3/s), tube-local lip point, and the speed the water leaves at. */
-  spill: { flow: number; lipX: number; lipY: number; speed: number };
+  /** Spill over the lip: flow (m^3/s), tube-local lip point, the speed the water leaves at, and the
+   * width of the crest it pours over (m). */
+  spill: { flow: number; lipX: number; lipY: number; speed: number; width: number };
   stream: StreamLanding;
   /** Torques about the axle (N m), for the debug graph. */
   torqueWater: number;
@@ -57,7 +58,7 @@ export class ShishiodoshiSim {
     this.inContact = true;
     this.out = {
       surface: null,
-      spill: { flow: 0, lipX: cfg.tube.front, lipY: 0, speed: 0 },
+      spill: { flow: 0, lipX: cfg.tube.front, lipY: 0, speed: 0, width: 0 },
       stream: streamLanding(cfg, cfg.restAngle, null),
       torqueWater: 0,
       torqueTube: 0,
@@ -84,7 +85,7 @@ export class ShishiodoshiSim {
 
     // water in the tube: where its surface is, where its weight acts, and how much spills
     const phi = st.angle + st.alpha;
-    let mw = 0, wx = 0, wy = 0, spillFlow = 0, speed = 0;
+    let mw = 0, wx = 0, wy = 0, spillFlow = 0, speed = 0, crest = 0;
     let surface: SimOutputs['surface'] = null;
     let lip = this.hydro.lipPoint(phi);
     if (st.volume > 1e-9) {
@@ -101,6 +102,7 @@ export class ShishiodoshiSim {
         const r = this.hydro.r;
         const w = h < r ? 2 * Math.sqrt(h * (2 * r - h)) : 2 * r;
         spillFlow = Math.min(cfg.weirCd * (2 / 3) * Math.sqrt(2 * g) * w * Math.pow(h, 1.5), st.volume / dt);
+        crest = w;
         // the water leaving the lip has also slid down the tilted tube from its centroid to the lip
         const lipX = this.hydro.lipPoint(phi).x;
         const slide = Math.max(0, (lipX - this.shape.cx) * -Math.sin(st.angle));
@@ -167,7 +169,7 @@ export class ShishiodoshiSim {
     lip = this.hydro.lipPoint(phi);
     this.out = {
       surface,
-      spill: { flow: spillFlow, lipX: lip.x, lipY: lip.y, speed },
+      spill: { flow: spillFlow, lipX: lip.x, lipY: lip.y, speed, width: crest },
       stream: landing,
       torqueWater: tauWater,
       torqueTube: tauTube,
