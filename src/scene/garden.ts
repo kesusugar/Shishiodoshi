@@ -36,6 +36,14 @@ export function buildGarden(season: Season, _canopy: Canopy['uniforms'], basin: 
     { x: 0.42, z: 0, r: 0.07 },
   ];
   const free = (x: number, z: number, pad = 0) => keep.every((k) => Math.hypot(x - k.x, z - k.z) > k.r + pad);
+  // where things stand on the ground (their contact shadows): basin, striker, posts, standing culm
+  const contacts: { x: number; z: number; rx: number; rz: number }[] = [
+    { x: basin.center.x, z: basin.center.z, rx: 0.42, rz: 0.42 },
+    { x: -0.62, z: 0, rx: 0.24, rz: 0.2 },
+    { x: -0.34, z: -0.058, rx: 0.05, rz: 0.05 },
+    { x: -0.34, z: 0.058, rx: 0.05, rz: 0.05 },
+    { x: 0.42, z: -0.01, rx: 0.08, rz: 0.08 },
+  ];
 
   // ---- gravel: small rounded stones, wet, in a bed around the base
   {
@@ -90,6 +98,7 @@ export function buildGarden(season: Season, _canopy: Canopy['uniforms'], basin: 
       [1.3, -1.3, 0.9, 0.75, 0.7],
     ];
     for (const [x, z, w, h, d] of spots) {
+      contacts.push({ x, z, rx: w * 0.75, rz: d * 0.75 });
       const g = rockGeometry(rand, w / 2, h, d / 2);
       const r = new THREE.Mesh(g, mat);
       r.position.set(x, -0.03, z);
@@ -98,6 +107,8 @@ export function buildGarden(season: Season, _canopy: Canopy['uniforms'], basin: 
       root.add(r);
     }
   }
+
+  root.add(contactShadows(contacts));
 
   // ---- ferns: clumps of fronds, each a curved stem with leaflets that shrink toward the tip
   {
@@ -350,4 +361,28 @@ function translucentLeaves(mat: THREE.MeshStandardMaterial, tint: THREE.Color): 
         ),
       );
   };
+}
+
+/**
+ * Soft dark patches on the ground where things stand (ambient occlusion the shadow map cannot give:
+ * the sky is hidden right at an object's foot). One instanced disc with a radial fade.
+ */
+function contactShadows(spots: { x: number; z: number; rx: number; rz: number }[]): THREE.InstancedMesh {
+  const S = 128;
+  const c = document.createElement('canvas');
+  c.width = c.height = S;
+  const g = c.getContext('2d')!;
+  const grad = g.createRadialGradient(S / 2, S / 2, 0, S / 2, S / 2, S / 2);
+  grad.addColorStop(0, 'rgba(255,255,255,1)');
+  grad.addColorStop(0.45, 'rgba(255,255,255,0.75)');
+  grad.addColorStop(1, 'rgba(255,255,255,0)');
+  g.fillStyle = grad;
+  g.fillRect(0, 0, S, S);
+  const tex = new THREE.CanvasTexture(c);
+  const mat = new THREE.MeshBasicMaterial({ color: '#000000', alphaMap: tex, transparent: true, opacity: 0.6, depthWrite: false, polygonOffset: true, polygonOffsetFactor: -2 });
+  const mesh = new THREE.InstancedMesh(new THREE.PlaneGeometry(2, 2).rotateX(-Math.PI / 2), mat, spots.length);
+  const m = new THREE.Matrix4();
+  spots.forEach((sp, i) => mesh.setMatrixAt(i, m.makeScale(sp.rx, 1, sp.rz).setPosition(sp.x, 0.002, sp.z)));
+  mesh.renderOrder = -1;
+  return mesh;
 }
