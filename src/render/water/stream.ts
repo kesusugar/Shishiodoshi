@@ -6,6 +6,11 @@ import { ENV_GLSL, type EnvUniforms } from '../env';
  * the way down, so as the water speeds up the stream gets thinner (r = sqrt(Q / (pi v))). Its surface
  * carries small travelling bulges (the start of the break-up into drops). Used for the kakei's stream
  * and for the pour out of the tube's mouth; both are reshaped from the simulation every frame.
+ *
+ * A pour over a wide lip leaves as a sheet as wide as the wetted crest: its cross-section is an
+ * ellipse that surface tension pulls in toward a round jet within a few centimetres of falling
+ * (the area stays Q / v), and the sheet tears into strands and then drops at different moments
+ * across its width (uTear).
  */
 
 const G = 9.81;
@@ -20,6 +25,8 @@ export class Stream {
   readonly uFoam = { value: 0 };
   /** Time after leaving the lip at which the column has broken into drops (s); 0 = never. */
   readonly uBreak = { value: 0 };
+  /** How unevenly the break-up happens across the stream (0 = the whole column pinches at once). */
+  readonly uTear = { value: 0 };
   private readonly pos: Float32Array;
   private readonly nrm: Float32Array;
   private readonly along: Float32Array;
@@ -47,13 +54,14 @@ export class Stream {
     // A rod of clear water, blended over what is behind it: its rim reflects the garden (Fresnel),
     // the sun glints off it, and in a pour, streaks of entrained air ride along with the water.
     const mat = new THREE.ShaderMaterial({
-      uniforms: { ...env, uTime: this.uTime, uEndY: this.uEndY, uFoam: this.uFoam, uBreak: this.uBreak },
+      uniforms: { ...env, uTime: this.uTime, uEndY: this.uEndY, uFoam: this.uFoam, uBreak: this.uBreak, uTear: this.uTear },
       transparent: true,
       depthWrite: true,
       vertexShader: /* glsl */ `
-        attribute vec3 aAlong;   // time since leaving the lip (s), radius (m), around (0..1)
-        uniform float uTime, uBreak;
+        attribute vec3 aAlong;   // time since leaving the lip (s), distance from the axis (m), around (0..1)
+        uniform float uTime, uBreak, uTear;
         varying vec3 vPos, vNrm;
+        varying float vT;
         varying vec2 vFlow;      // where this bit of water left the lip (time), and around the stream
         void main() {
           // travelling bulges: the water that left the lip at time (uTime - t) carries its own wobble
@@ -64,7 +72,8 @@ export class Stream {
           vec3 p = position + normal * aAlong.y * bulge;
           // break-up: the column pinches into a string of beads that travel with the water; each bead
           // holds the water of a stretch of column, so it is a little fatter than the column was
-          if (uBreak > 0.0) {
+          // (a torn sheet does not pinch into beads: it frays into holes, see the fragment shader)
+          if (uBreak > 0.0 && uTear == 0.0) {
             float k = smoothstep(uBreak * 0.6, uBreak * 1.4, aAlong.x);
             float f = fract(born * 60.0 + 0.3 * sin(born * 11.0));
             // a bead over part of each period, a gap over the rest
@@ -75,14 +84,16 @@ export class Stream {
           vPos = (modelMatrix * vec4(p, 1.0)).xyz;
           vNrm = normalize(mat3(modelMatrix) * normal);
           vFlow = vec2(born, aAlong.z);
+          vT = aAlong.x;
           gl_Position = projectionMatrix * viewMatrix * vec4(vPos, 1.0);
         }`,
       fragmentShader:
         ENV_GLSL +
         /* glsl */ `
-        uniform float uEndY, uFoam;
+        uniform float uEndY, uFoam, uBreak, uTear;
         varying vec3 vPos, vNrm;
         varying vec2 vFlow;
+        varying float vT;
         float h21(vec2 p) { p = fract(p * vec2(234.34, 435.345)); p += dot(p, p + 34.23); return fract(p.x * p.y); }
         float n21(vec2 p) {
           vec2 i = floor(p), f = fract(p), u = f * f * (3.0 - 2.0 * f);
@@ -90,6 +101,14 @@ export class Stream {
         }
         void main() {
           if (vPos.y < uEndY) discard;   // it has landed (in the tube, on the bamboo, in the basin)
+          // a torn sheet: holes open where it is thinnest and spread until only strands, then nothing,
+          // are left (the drops it breaks into are particles, see SimView); they ride with the water
+          if (uTear > 0.0) {
+            float tear = smoothstep(uBreak * 0.55, uBreak * 1.5, vT);
+            float edge = abs(sin(6.2831853 * vFlow.y));   // the sheet's side edges (around = 1/4, 3/4) go first
+            float holes = n21(vec2(vFlow.x * 45.0, vFlow.y * 9.0)) * 0.65 + n21(vec2(vFlow.x * 110.0, vFlow.y * 23.0)) * 0.35;
+            if (holes < tear * (1.1 + 0.4 * edge) - 0.1) discard;
+          }
           vec3 n = normalize(vNrm), v = normalize(vPos - cameraPosition);
           if (dot(n, v) > 0.0) n = -n;
           float c = clamp(-dot(v, n), 0.0, 1.0);
@@ -121,7 +140,7 @@ export class Stream {
    * Reshape: water leaving `start` (world) at `velocity` with flow `flow` (m^3/s), drawn down to
    * height `bottomY`; the part below `endY` is hidden (it has landed).
    */
-  set(start: THREE.Vector3, velocity: THREE.Vector3, flow: number, bottomY: number, endY: number): void {
+  set(start: THREE.Vector3, velocity: THREE.Vector3, flow: number, bottomY: number, endY: number, sheetWidth = 0): void {
     if (flow <= 0) {
       this.mesh.visible = false;
       return;
@@ -138,21 +157,27 @@ export class Stream {
       vel.set(velocity.x, velocity.y - G * t, velocity.z);
       const speed = vel.length();
       const r = this.thicken * Math.sqrt(flow / (Math.PI * Math.max(speed, 0.15)));
+      // the cross-section's half-width (sideways, z) and half-thickness (in the plane of the fall):
+      // a sheet at the lip, pulled in toward the round jet (radius r) as it falls
+      const wide = Math.max(r, (sheetWidth / 2) * Math.exp(-t / 0.045) + r * (1 - Math.exp(-t / 0.045)));
+      const thick = (r * r) / wide;
       vel.normalize();
       side.crossVectors(vel, zAxis).normalize();
       up.crossVectors(side, vel).normalize();
       for (let j = 0; j <= AROUND; j++) {
         const phi = (j / AROUND) * Math.PI * 2;
-        nn.copy(side).multiplyScalar(Math.cos(phi)).addScaledVector(up, Math.sin(phi));
+        const cs = Math.cos(phi), sn = Math.sin(phi);
         const k = i * (AROUND + 1) + j;
-        this.pos[k * 3] = c0.x + nn.x * r;
-        this.pos[k * 3 + 1] = c0.y + nn.y * r;
-        this.pos[k * 3 + 2] = c0.z + nn.z * r;
+        this.pos[k * 3] = c0.x + side.x * cs * thick + up.x * sn * wide;
+        this.pos[k * 3 + 1] = c0.y + side.y * cs * thick + up.y * sn * wide;
+        this.pos[k * 3 + 2] = c0.z + side.z * cs * thick + up.z * sn * wide;
+        // the ellipse's normal
+        nn.copy(side).multiplyScalar(cs / thick).addScaledVector(up, sn / wide).normalize();
         this.nrm[k * 3] = nn.x;
         this.nrm[k * 3 + 1] = nn.y;
         this.nrm[k * 3 + 2] = nn.z;
         this.along[k * 3] = t;
-        this.along[k * 3 + 1] = r;
+        this.along[k * 3 + 1] = Math.hypot(cs * thick, sn * wide); // this point's distance from the axis
         this.along[k * 3 + 2] = j / AROUND;
       }
     }

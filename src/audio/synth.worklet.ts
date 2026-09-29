@@ -30,7 +30,7 @@ declare class AudioWorkletProcessor {
 
 type Target = 'mouth' | 'skin' | 'basin' | 'ground';
 
-interface StrikeMsg { type: 'strike'; time: number; intensity: number; airLength: number }
+interface StrikeMsg { type: 'strike' | 'stop'; time: number; intensity: number; airLength: number }
 interface ParamsMsg {
   type: 'params';
   streamTarget: Target;
@@ -44,7 +44,7 @@ interface ParamsMsg {
 }
 
 // Mix: the knock's level at a normal strike, and the water layers under it (see the header)
-const MIX = { knock: 0.7, trickle: 0.14, pour: 0.07, landBubbles: 0.06, landSplash: 0.016 };
+const MIX = { knock: 0.7, trickle: 0.14, pour: 0.07, landBubbles: 0.06, landSplash: 0.016, stop: 0.45, roomKnock: 0.3, roomWater: 0.12 };
 
 const TWO_PI = Math.PI * 2;
 const SOUND = 343;
@@ -144,24 +144,29 @@ class Knock {
   private readonly hp = new OnePole();
   private readonly lp = new OnePole();
   readonly gain: number;
-  constructor(intensity: number, airLength: number, rng: Rng) {
+  /**
+   * @param stop the tube's belly landing on the crossbar instead: wood on wood, with the tube still
+   * full of water, so dull and short (its wall barely rings, no hollow air column, no hard click)
+   */
+  constructor(intensity: number, airLength: number, rng: Rng, stop = false) {
     this.hp.setCutoff(2000);
-    this.lp.setCutoff(800);
+    this.lp.setCutoff(stop ? 500 : 800);
     const I = Math.max(0, intensity);
     // harder: a touch sharper (the wall stiffens under the blow) and rings a little longer
     const pitch = 1 + 0.008 * Math.min(I, 1.5);
     const ring = 0.85 + 0.2 * Math.min(I, 1.5);
     this.f = MODES.map((m) => m.f * pitch * (1 + 0.006 * rng.bi()));
     this.amp = MODES.map((m) => m.a * Math.pow(Math.min(I, 1.5), m.bright) * (1 + 0.1 * rng.bi()));
-    this.dec = MODES.map((m) => 6.91 / (m.t60 * ring));
+    this.dec = MODES.map((m) => 6.91 / (m.t60 * ring * (stop ? 0.3 : 1)));
+    if (stop) this.amp.forEach((a, i) => (this.amp[i] = a * [0.8, 0.1, 0.6, 0.15, 0][i]));
     // the air column: the hollowness under the knock, faint
     const fa = SOUND / (4 * (airLength + 0.6 * TUBE.inner));
-    this.air = { f: fa * (1 + 0.004 * rng.bi()), amp: 0.22, dec: 6.91 / (0.1 * ring) };
-    this.contact = 0.0012 - 0.0006 * Math.min(I, 1.5);
-    this.clickAmp = 0.6 * Math.pow(Math.min(I, 1.5), 1.2);
-    this.thudAmp = 0.08;
+    this.air = { f: fa * (1 + 0.004 * rng.bi()), amp: stop ? 0 : 0.22, dec: 6.91 / (0.1 * ring) };
+    this.contact = stop ? 0.003 : 0.0012 - 0.0006 * Math.min(I, 1.5);
+    this.clickAmp = stop ? 0.08 * I : 0.6 * Math.pow(Math.min(I, 1.5), 1.2);
+    this.thudAmp = stop ? 0.5 : 0.08;
     // gain: a firmer knock with more swing, but gently (a bounce at a third of the speed is ~1/4 as loud)
-    this.gain = Math.pow(I, 1.25);
+    this.gain = Math.pow(I, 1.25) * (stop ? MIX.stop : 1);
   }
   get done(): boolean {
     return this.t > 0.4;
@@ -183,6 +188,61 @@ class Knock {
   }
 }
 
+/**
+ * The garden's acoustics: outdoors, so no hall, just a few early reflections off the stones, the
+ * basin and the posts nearby (a little different in each ear) and a very short, darkened tail
+ * (Schroeder: parallel damped combs, then an allpass). Makes the knock sit in a place.
+ */
+class GardenRoom {
+  private readonly buf = new Float32Array(8192);
+  private w = 0;
+  // early reflections: delay (ms), gain, left / right
+  private readonly taps: { d: number; g: number; l: number; r: number }[];
+  private readonly combs: { buf: Float32Array; i: number; fb: number; z: number }[];
+  private readonly ap = { buf: new Float32Array(256), i: 0 };
+  private readonly dark = new OnePole();
+  constructor() {
+    const ms = (x: number) => Math.round((x / 1000) * sampleRate);
+    this.taps = [
+      { d: ms(4.7), g: 0.45, l: 1, r: 0.6 },
+      { d: ms(9.3), g: 0.32, l: 0.5, r: 1 },
+      { d: ms(13.9), g: 0.24, l: 1, r: 0.8 },
+      { d: ms(21.1), g: 0.16, l: 0.7, r: 1 },
+      { d: ms(33.7), g: 0.1, l: 1, r: 0.5 },
+    ];
+    // tail of about a third of a second
+    this.combs = [29.7, 37.1, 41.1, 43.7].map((d) => ({ buf: new Float32Array(ms(d)), i: 0, fb: 0.62, z: 0 }));
+    this.dark.setCutoff(3500);
+  }
+  /** Feed one sample; returns the wet [left, right]. */
+  tick(x: number, out: [number, number]): void {
+    this.buf[this.w] = x;
+    let l = 0, r = 0;
+    for (const t of this.taps) {
+      const v = this.buf[(this.w - t.d + 8192) & 8191] * t.g;
+      l += v * t.l;
+      r += v * t.r;
+    }
+    this.w = (this.w + 1) & 8191;
+    // tail
+    const xin = this.dark.lp(x) * 0.25;
+    let tail = 0;
+    for (const c of this.combs) {
+      const y = c.buf[c.i];
+      c.z += 0.4 * (y - c.z); // damping: highs die first
+      c.buf[c.i] = xin + c.z * c.fb;
+      c.i = (c.i + 1) % c.buf.length;
+      tail += y;
+    }
+    const a = this.ap, yb = a.buf[a.i];
+    const ya = -0.5 * tail + yb;
+    a.buf[a.i] = tail + 0.5 * ya;
+    a.i = (a.i + 1) % a.buf.length;
+    out[0] = l + ya;
+    out[1] = r + ya * 0.9;
+  }
+}
+
 class ShishiSynth extends AudioWorkletProcessor {
   private readonly rng = new Rng();
   private readonly strikes: StrikeMsg[] = [];
@@ -192,6 +252,8 @@ class ShishiSynth extends AudioWorkletProcessor {
   };
   // knocks ringing (a strike and its bounces can overlap)
   private readonly knocks: Knock[] = [];
+  private readonly room = new GardenRoom();
+  private readonly wet: [number, number] = [0, 0];
   // water
   private readonly bubbles: Bubble[] = [];
   private readonly tubeAir = new Resonator();
@@ -224,10 +286,11 @@ class ShishiSynth extends AudioWorkletProcessor {
     this.setAir(0.4);
     this.port.onmessage = (e: MessageEvent<StrikeMsg | ParamsMsg>) => {
       const m = e.data;
-      if (m.type === 'strike') {
+      if (m.type === 'params') this.p = m;
+      else {
         this.strikes.push(m);
         this.strikes.sort((a, b) => a.time - b.time);
-      } else this.p = m;
+      }
     };
   }
 
@@ -268,7 +331,7 @@ class ShishiSynth extends AudioWorkletProcessor {
       // strikes due by this sample start a knock (sample-accurate)
       while (this.strikes.length && this.strikes[0].time <= t) {
         const s = this.strikes.shift()!;
-        if (s.intensity > 0.03) this.knocks.push(new Knock(s.intensity, s.airLength, this.rng));
+        if (s.intensity > 0.03) this.knocks.push(new Knock(s.intensity, s.airLength, this.rng, s.type === 'stop'));
       }
       for (let k = this.knocks.length - 1; k >= 0; k--) {
         knock += this.knocks[k].tick(dt, this.rng.bi());
@@ -316,10 +379,12 @@ class ShishiSynth extends AudioWorkletProcessor {
       const wind = this.windLp.lp(this.windLp2.lp(this.brown) * 0.5 + this.brown * 0.3) * (0.2 + 0.8 * gust) * p.wind * 0.08;
 
       const water = trickle * MIX.trickle + rush + landing;
-      const mono = knock * MIX.knock * g.knock + water * g.water;
+      const dryKnock = knock * MIX.knock * g.knock, dryWater = water * g.water;
+      const mono = dryKnock + dryWater;
+      this.room.tick(dryKnock * MIX.roomKnock + dryWater * MIX.roomWater, this.wet);
       // the tube and basin sit a little left of centre; the wind is wide
-      const l = Math.tanh(mono * 1.05 + wind * g.ambient);
-      const r = Math.tanh(mono * 0.95 - wind * g.ambient * 0.6);
+      const l = Math.tanh(mono * 1.05 + this.wet[0] + wind * g.ambient);
+      const r = Math.tanh(mono * 0.95 + this.wet[1] - wind * g.ambient * 0.6);
       L[i] = l;
       R[i] = r;
     }

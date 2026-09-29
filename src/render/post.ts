@@ -8,8 +8,6 @@ import * as THREE from 'three';
  * a golden-angle spiral. A sample only spreads over pixels its own blur circle reaches, so a sharp
  * foreground is not smeared by the background behind it.
  */
-const TAPS = 28;
-
 export class Post {
   private rt: THREE.WebGLRenderTarget;
   private readonly quad: THREE.Mesh;
@@ -28,12 +26,23 @@ export class Post {
   private good = 0;
   /** Seconds to wait after a change: resizing reallocates the target, which costs a frame. */
   private hold = 0;
+  private readonly minScale: number;
+
+  /** Frame times (s) above which the resolution drops, and below which it may rise again. */
+  private readonly slow: number;
+  private readonly fast: number;
 
   constructor(
     private readonly renderer: THREE.WebGLRenderer,
     private readonly scene: THREE.Scene,
     private readonly camera: THREE.PerspectiveCamera,
+    /** Depth-of-field samples at most, the frame rate to keep and the lowest resolution scale. */
+    opts: { taps: number; targetFps: number; minScale: number } = { taps: 28, targetFps: 60, minScale: 0.55 },
   ) {
+    const TAPS = opts.taps;
+    this.slow = 1 / (opts.targetFps * 0.87);
+    this.fast = 1 / (opts.targetFps * 0.97);
+    this.minScale = opts.minScale;
     this.rt = this.makeTarget(1, 1);
     this.mat = new THREE.ShaderMaterial({
       uniforms: {
@@ -94,8 +103,6 @@ export class Post {
   private makeTarget(w: number, h: number): THREE.WebGLRenderTarget {
     const depth = new THREE.DepthTexture(w, h);
     depth.type = THREE.FloatType;
-    // no MSAA: with it, this GPU (Iris Xe) stalls for 80-100 ms every few frames; the depth of field
-    // softens most edges anyway
     // no MSAA: with it this GPU (Iris Xe) stalls for 80-100 ms every few frames once the garden is
     // in view; the depth of field softens most edges anyway
     return new THREE.WebGLRenderTarget(w, h, { type: THREE.HalfFloatType, samples: 0, depthTexture: depth });
@@ -132,10 +139,10 @@ export class Post {
     this.win = 0;
     this.winFrames = 0;
     let next = this.scale;
-    if (mean > 1 / 52) {
-      next = Math.max(0.55, this.scale * 0.88);
+    if (mean > this.slow) {
+      next = Math.max(this.minScale, this.scale * 0.88);
       this.good = 0;
-    } else if (mean < 1 / 58 && ++this.good >= 3) {
+    } else if (mean < this.fast && ++this.good >= 3) {
       next = Math.min(1, this.scale * 1.07);
       this.good = 0;
     }

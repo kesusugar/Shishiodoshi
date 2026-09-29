@@ -123,7 +123,10 @@ export function buildBasin(season: Season): THREE.Mesh {
         // edge is uneven); wet stone is darker and glossy
         float wet = smoothstep(${(H - 0.07).toFixed(3)}, ${(H - 0.01).toFixed(3)}, vBasinPos.y + 0.03 * (mossT.a - 0.5)) * (1.0 - 0.6 * mossK);
         wet = max(wet, smoothstep(${(RB + 0.04).toFixed(3)}, ${(RB + 0.005).toFixed(3)}, length(vBasinPos.xz)));
-        diffuseColor.rgb *= 1.0 - 0.35 * wet;`,
+        diffuseColor.rgb *= 1.0 - 0.35 * wet;
+        // where the block goes into the ground: damp and soil-stained
+        float sunk = 1.0 - smoothstep(0.0, 0.07, vBasinPos.y + 0.02 * (mossT.a - 0.5));
+        diffuseColor.rgb = mix(diffuseColor.rgb, vec3(0.05, 0.04, 0.03), sunk * 0.65);`,
       )
       .replace('#include <roughnessmap_fragment>', '#include <roughnessmap_fragment>\nroughnessFactor = mix(roughnessFactor, 1.0, mossK);\nroughnessFactor = mix(roughnessFactor, 0.12, wet);')
       // moss is a mat of tiny stems: its own light-catching bumps replace the stone's

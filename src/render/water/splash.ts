@@ -80,6 +80,12 @@ export class Splash {
     }
   }
 
+  /** Launch one drop from `at` with velocity `vel` (e.g. spray shed from a falling sheet). */
+  launch(at: THREE.Vector3, vel: THREE.Vector3, radius: number): void {
+    if (this.drops.length >= MAX) return;
+    this.drops.push({ x: at.x, y: at.y, z: at.z, vx: vel.x, vy: vel.y, vz: vel.z, r: radius });
+  }
+
   update(dt: number): void {
     const b = this.basinSpec;
     let n = 0;

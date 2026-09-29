@@ -86,3 +86,60 @@ body {
 #tip[hidden] {
   display: none;
 }
+
+#settings {
+  position: fixed;
+  right: 8px;
+  top: 8px;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 6px;
+  font: 13px system-ui, 'Segoe UI', 'Yu Gothic UI', sans-serif;
+}
+
+#settings .gear,
+#settings .reset {
+  padding: 6px 12px;
+  border: 1px solid rgb(255 255 255 / 0.35);
+  border-radius: 4px;
+  background: rgb(0 0 0 / 0.4);
+  color: #e8ecdf;
+  font: inherit;
+  cursor: pointer;
+}
+
+#settings .panel {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  width: min(280px, calc(100vw - 16px));
+  box-sizing: border-box;
+  padding: 12px;
+  border-radius: 6px;
+  background: rgb(0 0 0 / 0.55);
+}
+
+#settings .panel[hidden] {
+  display: none;
+}
+
+#settings label {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+#settings label span {
+  opacity: 0.75;
+  font-size: 12px;
+}
+
+#settings input[type='range'] {
+  width: 100%;
+  min-height: 28px; /* easy to hit with a finger */
+}
+
+#settings .reset {
+  align-self: flex-start;
+}

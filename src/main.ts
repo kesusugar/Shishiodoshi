@@ -7,6 +7,7 @@ import { gpuName, Hud } from './debug/hud';
 import { probe } from './debug/probe';
 import { Canopy } from './render/canopy';
 import { Post } from './render/post';
+import { pickQuality } from './render/quality';
 import { BasinWater } from './render/water/basinWater';
 import { SimView } from './render/simView';
 import { waterBeads } from './render/water/beads';
@@ -19,6 +20,8 @@ import { buildStage, cameraPresets, type CameraPreset } from './scene/stage';
 import { FixedStepper } from './sim/fixedStep';
 import type { SimEvent } from './sim/events';
 import { ShishiodoshiSim } from './sim/shishiodoshi';
+import { defaultConfig } from './sim/config';
+import { buildSettingsPanel, defaultSettings, loadSettings, type Settings } from './ui/settings';
 
 // URL options: ?view=main|close|mouth|wide picks a camera preset; ?capture hides the UI and skips the
 // click-to-start screen (used by tools/ for screenshots and measurements); ?t=20 fast-forwards the
@@ -40,26 +43,31 @@ function fail(message: string): never {
   throw new Error(message);
 }
 
+// PC or phone (render/quality.ts)
+const quality = pickQuality(params);
+probe.quality = quality.name;
+
 let renderer: THREE.WebGLRenderer;
 try {
-  renderer = new THREE.WebGLRenderer({ canvas, antialias: true, powerPreference: 'high-performance' });
+  renderer = new THREE.WebGLRenderer({ canvas, antialias: quality.antialias, powerPreference: 'high-performance' });
 } catch (e) {
   fail(`WebGL2 を初期化できませんでした。\n${e instanceof Error ? e.message : String(e)}`);
 }
-renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+renderer.setPixelRatio(Math.min(window.devicePixelRatio, quality.maxPixelRatio));
 renderer.outputColorSpace = THREE.SRGBColorSpace;
 renderer.toneMapping = THREE.AgXToneMapping;
-renderer.toneMappingExposure = 1.0;
+renderer.toneMappingExposure = 1.2; // ref3 is a bright summer photo: mid-tones up, the sun's highlights still held by AgX
 renderer.shadowMap.enabled = !off.has('shadow');
-renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+renderer.shadowMap.type = quality.softShadows ? THREE.PCFSoftShadowMap : THREE.PCFShadowMap;
 
 probe.gpu = gpuName(renderer.getContext() as WebGL2RenderingContext);
-const hud = new Hud(hudEl, probe.gpu);
+const hud = new Hud(hudEl, `${probe.gpu}  [${quality.name}]`);
 if (capture) hudEl.hidden = true;
 
 const season = defaultSeason;
 const scene = new THREE.Scene();
 const stage = buildStage(renderer, scene, season);
+stage.sun.shadow.mapSize.set(quality.shadowMapSize, quality.shadowMapSize);
 const canopy = new Canopy();
 if (!off.has('canopy')) scene.add(canopy.mesh);
 const world = buildShishiodoshi(season, stage.env, canopy.uniforms);
@@ -69,8 +77,11 @@ if (!off.has('garden')) scene.add(garden.root);
 const water = new BasinWater(renderer, { ...world.basin, wind: season.wind }, stage.env, canopy.uniforms);
 if (!off.has('water')) scene.add(water.mesh);
 
-// The simulation, and what it moves
-const sim = new ShishiodoshiSim();
+// Settings (flow and volumes; the tools always run with the defaults)
+const settings: Settings = capture ? { ...defaultSettings } : loadSettings();
+
+// The simulation (with its own copy of the inflow, which the settings change), and what it moves
+const sim = new ShishiodoshiSim({ ...defaultConfig, inflow: { ...defaultConfig.inflow, flow: settings.flow * 1e-6 } });
 const simView = new SimView(sim, world, water, stage.env, new THREE.Color('#d9c89a'));
 probe.inspect.sim = sim;
 probe.inspect.water = water;
@@ -113,6 +124,13 @@ camera.position.copy(preset.position);
 // Look around within limits (PLAN.md 8章).
 const controls = new OrbitControls(camera, canvas);
 controls.target.copy(preset.target);
+// on a portrait screen, look a little further left so the striker stone (where the knock comes
+// from) is in view as well as the basin
+if (canvas.clientWidth < canvas.clientHeight) {
+  const shift = new THREE.Vector3(-0.1, 0, 0);
+  camera.position.add(shift);
+  controls.target.add(shift);
+}
 controls.enableDamping = true;
 controls.enablePan = false;
 controls.minDistance = 0.35;
@@ -128,10 +146,14 @@ function resize(): void {
   const h = canvas.clientHeight;
   renderer.setSize(w, h, false);
   camera.aspect = w / h;
+  // the presets are framed for a 16:9 window: on a narrower (portrait phone) screen, widen the view
+  // part of the way, so the whole shishi-odoshi still fits without a strong wide-angle look
+  const narrow = Math.max(1, 16 / 9 / camera.aspect);
+  camera.fov = THREE.MathUtils.radToDeg(2 * Math.atan(Math.tan(THREE.MathUtils.degToRad(preset.fov) / 2) * Math.sqrt(narrow)));
   camera.updateProjectionMatrix();
   post.setSize(w, h);
 }
-const post = new Post(renderer, scene, camera);
+const post = new Post(renderer, scene, camera, { taps: quality.dofTaps, targetFps: quality.targetFps, minScale: quality.minScale });
 window.addEventListener('resize', resize);
 resize();
 
@@ -201,8 +223,18 @@ renderer.setAnimationLoop((timestamp) => {
   });
 }
 
+const applySettings = (st: Settings) => {
+  sim.cfg.inflow.flow = st.flow * 1e-6;
+  simView.setInflow(sim.cfg.inflow.flow);
+  if (audio) audio.gains = { knock: st.knock, water: st.water, ambient: st.ambient };
+};
 if (!capture) {
+  document.body.append(buildSettingsPanel(settings, (st) => {
+    Object.assign(settings, st);
+    applySettings(settings);
+  }));
   void waitForStart(document.querySelector<HTMLElement>('#start')!).then(async (ctx) => {
     audio = await AudioEngine.create(ctx);
+    applySettings(settings);
   });
 }
