@@ -40,8 +40,13 @@ for (const name of wanted) {
   if (app.errors.length) console.error(`${name}: ${app.errors.join('\n')}`);
 }
 
-// compose 2 x 2 in a plain page's canvas
+// compose 2 x 2 in a plain page's canvas (a season not shot in this run is taken from an earlier
+// run's tools/out/season-<name>.png if there is one, e.g. after --seasons=winter)
 const order = ['spring', 'summer', 'autumn', 'winter'];
+for (const name of order) {
+  const earlier = path.join(outDir, `season-${name}.png`);
+  if (!shots[name] && (await readFile(earlier).then(() => true, () => false))) shots[name] = earlier;
+}
 const images = {};
 for (const [name, file] of Object.entries(shots)) images[name] = `data:image/png;base64,${(await readFile(file)).toString('base64')}`;
 const app = await openApp({ width: 400, height: 300 });

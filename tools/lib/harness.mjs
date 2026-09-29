@@ -57,7 +57,7 @@ export async function openApp(opts = {}) {
 
   async function load(query = '') {
     await page.goto(`${base}?capture${query ? `&${query}` : ''}`);
-    await page.waitForFunction(() => window.__shishi?.ready || window.__shishi?.error, null, { timeout: 60_000 });
+    await page.waitForFunction(() => window.__shishi?.ready || window.__shishi?.error, null, { timeout: 240_000 });
     const probe = await page.evaluate(() => window.__shishi);
     if (probe.error) throw new Error(`page reported: ${probe.error}`);
     return probe;
