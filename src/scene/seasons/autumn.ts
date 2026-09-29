@@ -21,6 +21,7 @@ export const autumn: Season = {
   bamboo: { age: 0.9, fresh: '#8fa546', aged: '#caa565' },
   wind: 0.3,
   garden: {
+    branch: 'maple',
     branchLeaves: [
       { color: '#c8321c', weight: 3 },
       { color: '#d9581a', weight: 3 },
@@ -30,8 +31,9 @@ export const autumn: Season = {
     ],
     ferns: '#8a5a20',
     fernScale: 0.55,
-    litter: { colors: REDS, tone: 0.95, count: 480, size: 0.062 },
+    litter: { colors: REDS, tone: 0.95, count: 480, size: 0.062, shape: 'leaf' },
     floaters,
+    floaterKind: 'leaf',
   },
   falling: { kind: 'leaf', count: 220, colors: REDS, size: [0.045, 0.07], speed: [0.16, 0.34], sway: 0.16, spin: 1.4, landsInBasin: true },
 };

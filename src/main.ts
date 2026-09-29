@@ -14,6 +14,7 @@ import { waterBeads } from './render/water/beads';
 import { Overflow } from './render/water/overflow';
 import { FloatingLeaves } from './render/water/floatingLeaves';
 import { Falling, HeroFall } from './render/falling';
+import { petalGeometry, petalTexture } from './scene/blossom';
 import { buildGarden } from './scene/garden';
 import { buildShishiodoshi } from './scene/shishiodoshi';
 import { pickSeason, rememberSeason, seasons, type Season, type SeasonName } from './scene/seasons';
@@ -117,7 +118,13 @@ function buildSeasonLife(): void {
     scene.remove(simView.floating.group);
     simView.floating.dispose();
   }
-  simView.floating = new FloatingLeaves(waterRef, garden.leafTexture, season.garden.floaters);
+  const petals = season.garden.floaterKind === 'petal';
+  simView.floating = new FloatingLeaves(
+    waterRef,
+    petals ? petalTexture() : garden.leafTexture,
+    season.garden.floaters,
+    petals ? petalGeometry(0.03, 6) : undefined,
+  );
   if (!off.has('garden')) scene.add(simView.floating.group);
   if (falling) {
     scene.remove(falling.mesh);
@@ -131,14 +138,21 @@ function buildSeasonLife(): void {
   }
   const style = season.falling;
   if (style && !off.has('falling')) {
-    falling = new Falling(style, stage.env, style.kind === 'leaf' ? garden.leafTexture : null, quality.name === 'low' ? 0.4 : 1);
+    const tex = style.kind === 'leaf' ? garden.leafTexture : style.kind === 'petal' ? petalTexture() : null;
+    falling = new Falling(style, stage.env, tex, quality.name === 'low' ? 0.4 : 1);
     scene.add(falling.mesh);
     if (style.landsInBasin) {
-      hero = new HeroFall(style, waterRef, (x, z, color) => {
-        // it touches down: a small ring, and it stays afloat
-        water.addDrop(new THREE.Vector3(x, waterRef.level, z), 0.01, -0.35);
-        simView.floating?.spawn(x, z, color);
-      });
+      hero = new HeroFall(
+        style,
+        waterRef,
+        (x, z, color) => {
+          // it touches down: a small ring, and it stays afloat
+          water.addDrop(new THREE.Vector3(x, waterRef.level, z), 0.01, -0.35);
+          simView.floating?.spawn(x, z, color);
+        },
+        style.kind === 'petal' ? petalGeometry(0.03, 4) : undefined,
+        style.kind === 'petal' ? petalTexture() : undefined,
+      );
       scene.add(hero.group);
     }
   }

@@ -4,7 +4,10 @@ import { mulberry32 } from './random';
 import type { Season } from './seasons';
 import { leafGeometry, mapleLeafTexture } from './leaves';
 import { mossyRockMaterial } from './rockMaterial';
-import { chainCompile } from '../render/shaderChain';
+import { translucentLeaves } from './translucent';
+import { buildCherryBranch } from './cherryBranch';
+import { petalGeometry } from './blossom';
+import { petalTexture } from './blossom';
 import { rockGeometry } from './shishiodoshi';
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 
@@ -152,7 +155,11 @@ export function buildGarden(season: Season, _canopy: Canopy['uniforms'], basin: 
   translucentLeaves(leafMat, new THREE.Color(season.foliage.leafLit));
   const twigMat = new THREE.MeshStandardMaterial({ color: '#3a2a1d', roughness: 0.85 });
   const branches: THREE.Group[] = [];
-  {
+  if (season.garden.branch === 'cherry') {
+    const cherry = buildCherryBranch(rand, new THREE.Color('#ffb0c8'));
+    branches.push(cherry.group);
+    root.add(cherry.group);
+  } else if (season.garden.branch === 'maple') {
     // it comes in from beyond the right edge of the main view and droops down its right side
     const base = new THREE.Vector3(1.0, 1.02, 0.62);
     const bough = new THREE.CatmullRomCurve3([
@@ -288,8 +295,9 @@ export function buildGarden(season: Season, _canopy: Canopy['uniforms'], basin: 
   {
     const { colors, tone, count, size: leafSize } = season.garden.litter;
     if (count > 0) {
-      const fallenMat = new THREE.MeshStandardMaterial({ map: mapleTex, alphaTest: 0.5, side: THREE.DoubleSide, roughness: 0.6 });
-      const mesh = new THREE.InstancedMesh(leafGeometry(leafSize).rotateX(-Math.PI / 2), fallenMat, count);
+      const petals = season.garden.litter.shape === 'petal';
+      const fallenMat = new THREE.MeshStandardMaterial({ map: petals ? petalTexture() : mapleTex, alphaTest: 0.5, side: THREE.DoubleSide, roughness: 0.6 });
+      const mesh = new THREE.InstancedMesh((petals ? petalGeometry(leafSize) : leafGeometry(leafSize)).rotateX(-Math.PI / 2), fallenMat, count);
       const m = new THREE.Matrix4(), q = new THREE.Quaternion(), e = new THREE.Euler(), p = new THREE.Vector3(), sc = new THREE.Vector3(1, 1, 1);
       const col = new THREE.Color();
       for (let i = 0; i < count; i++) {
@@ -364,27 +372,6 @@ function fernFrond(rand: () => number): THREE.BufferGeometry {
   return g;
 }
 
-
-/**
- * Leaves are thin: sunlight on their far side shows through, yellow-green (ref3's backlit maple).
- * Added to each direct light as diffuse light arriving through the blade, so it keeps that light's
- * shadow (a leaf in the shade of another does not glow).
- */
-function translucentLeaves(mat: THREE.MeshStandardMaterial, tint: THREE.Color): void {
-  chainCompile(mat, (sh) => {
-    sh.uniforms.uLeafTint = { value: tint };
-    sh.fragmentShader = sh.fragmentShader
-      .replace('#include <common>', '#include <common>\nuniform vec3 uLeafTint;')
-      .replace(
-        '#include <lights_fragment_begin>',
-        THREE.ShaderChunk.lights_fragment_begin.replaceAll(
-          'RE_Direct( directLight, geometryPosition, geometryNormal, geometryViewDir, geometryClearcoatNormal, material, reflectedLight );',
-          'RE_Direct( directLight, geometryPosition, geometryNormal, geometryViewDir, geometryClearcoatNormal, material, reflectedLight );\n' +
-            'reflectedLight.directDiffuse += uLeafTint * material.diffuseColor * directLight.color * max( 0.0, -dot( geometryNormal, directLight.direction ) ) * 0.9;',
-        ),
-      );
-  });
-}
 
 /**
  * Soft dark patches on the ground where things stand (ambient occlusion the shadow map cannot give:

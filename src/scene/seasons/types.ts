@@ -29,6 +29,8 @@ export interface FallingStyle {
 
 /** The garden around the shishi-odoshi (scene/garden.ts). */
 export interface GardenStyle {
+  /** The foreground bough: a maple, a flowering cherry, or bare twigs (winter). */
+  branch: 'maple' | 'cherry' | 'bare';
   /**
    * Colours of the foreground maple's leaves, chosen per leaf by weight; `null` = greens taken from
    * the season's foliage colours (summer).
@@ -39,9 +41,10 @@ export interface GardenStyle {
   /** How big the fern clumps are (1 = summer's). */
   fernScale: number;
   /** Fallen leaves on the ground: their colours, how dark (1 = as is), and how many. */
-  litter: { colors: string[]; tone: number; count: number; /** a leaf's size in metres */ size: number };
-  /** Leaves afloat on the basin: one entry per leaf. */
+  litter: { colors: string[]; tone: number; count: number; /** a leaf's size in metres */ size: number; shape: 'leaf' | 'petal' };
+  /** Leaves (or petals) afloat on the basin: one entry per piece. */
   floaters: string[];
+  floaterKind: 'leaf' | 'petal';
 }
 
 /** Everything that changes between seasons lives here (docs/SEASONS.md). */

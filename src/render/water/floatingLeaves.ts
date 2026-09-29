@@ -25,8 +25,9 @@ export class FloatingLeaves {
   private time = 0;
   private nextSlot = 0;
 
-  constructor(private readonly water: WaterSurfaceRef, texture: THREE.Texture, colours: string[]) {
-    const geo = leafGeometry(0.055, 8).rotateX(-Math.PI / 2); // fine enough to bend over the ripples
+  /** @param geometry a leaf or petal, facing +z and fine enough to bend over the ripples (default: a maple leaf) */
+  constructor(private readonly water: WaterSurfaceRef, texture: THREE.Texture, colours: string[], geometry: THREE.BufferGeometry = leafGeometry(0.055, 8)) {
+    const geo = geometry.rotateX(-Math.PI / 2);
     const R = water.bowlRadius;
     for (let i = 0; i < colours.length; i++) {
       const mat = new THREE.MeshStandardMaterial({ map: texture, color: colours[i], alphaTest: 0.5, side: THREE.DoubleSide, roughness: 0.35 });

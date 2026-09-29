@@ -14,11 +14,13 @@ export const summer: Season = {
   exposure: 1.2,
   wind: 0.25,
   garden: {
+    branch: 'maple',
     branchLeaves: null,
     ferns: '#3f6a2a',
     fernScale: 1,
-    litter: { colors: ['#c8321c', '#d98b1c', '#b52a18', '#8a6a1a'], tone: 0.8, count: 9, size: 0.05 },
+    litter: { colors: ['#c8321c', '#d98b1c', '#b52a18', '#8a6a1a'], tone: 0.8, count: 9, size: 0.05, shape: 'leaf' },
     floaters: ['#c8321c', '#d98b1c', '#b52a18'],
+    floaterKind: 'leaf',
   },
   falling: null,
 };
