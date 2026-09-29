@@ -20,6 +20,8 @@ export class AudioEngine {
   readonly node: AudioWorkletNode;
   readonly master: GainNode;
   gains: AudioGains = { knock: 1, water: 1, ambient: 1 };
+  /** The season's air (see the synth): set by setSeason. */
+  private air: { wind: number; season: { birds: number; insects: number; leaves: number; muffle: number } } = { wind: 0.25, season: { birds: 0, insects: 0, leaves: 0, muffle: 0 } };
   /** Pour flow keyed by the time it arrives in the basin. */
   private readonly pourHistory: { time: number; flow: number }[] = [];
 
@@ -28,6 +30,17 @@ export class AudioEngine {
     this.master = ctx.createGain();
     this.master.gain.value = 0.8;
     this.node.connect(this.master).connect(ctx.destination);
+  }
+
+  /** The season's sound: birds in spring, crickets and leaves in autumn, muffled in snow, and its wind. */
+  setSeason(name: 'spring' | 'summer' | 'autumn' | 'winter', wind: number): void {
+    const S = {
+      spring: { birds: 1, insects: 0, leaves: 0, muffle: 0 },
+      summer: { birds: 0, insects: 0, leaves: 0, muffle: 0 },
+      autumn: { birds: 0, insects: 1, leaves: 1, muffle: 0 },
+      winter: { birds: 0, insects: 0, leaves: 0, muffle: 1 },
+    } as const;
+    this.air = { wind, season: { ...S[name] } };
   }
 
   static async create(ctx: BaseAudioContext): Promise<AudioEngine> {
@@ -62,7 +75,8 @@ export class AudioEngine {
       airLength: sim.airLength(),
       pourFlow: sp.flow,
       landFlow,
-      wind: 0.25,
+      wind: this.air.wind,
+      season: this.air.season,
       gains: this.gains,
     });
   }

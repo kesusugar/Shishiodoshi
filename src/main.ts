@@ -98,7 +98,7 @@ probe.inspect.water = water;
 // offline sound for tools/audio.mjs: WAV bytes as base64
 probe.inspect.renderAudio = async (seconds: number, start: number) => {
   const { renderOffline } = await import('./audio/offline');
-  const bytes = new Uint8Array(await renderOffline(seconds, start));
+  const bytes = new Uint8Array(await renderOffline(seconds, start, 48000, season));
   let s = '';
   for (let i = 0; i < bytes.length; i += 0x8000) s += String.fromCharCode(...bytes.subarray(i, i + 0x8000));
   return btoa(s);
@@ -306,6 +306,7 @@ async function changeSeason(name: SeasonName, instant = false): Promise<void> {
   probe.season = next.name;
   rememberSeason(next.name);
   seasonBar?.select(next.name);
+  audio?.setSeason(next.name, next.wind);
   if (!instant) {
     await new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r)));
     fadeEl.style.opacity = '0';
@@ -328,6 +329,7 @@ if (!capture) {
   }));
   void waitForStart(document.querySelector<HTMLElement>('#start')!).then(async (ctx) => {
     audio = await AudioEngine.create(ctx);
+    audio.setSeason(season.name, season.wind);
     applySettings(settings);
   });
 }
