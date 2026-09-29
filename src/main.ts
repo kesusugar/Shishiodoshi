@@ -20,7 +20,8 @@ import { buildShishiodoshi } from './scene/shishiodoshi';
 import { pickSeason, rememberSeason, saveRound, savedRound, seasonNames, seasons, type Season, type SeasonName } from './scene/seasons';
 import { disposeTree } from './scene/dispose';
 import { setMossColor } from './scene/rockMaterial';
-import { setSnow } from './render/snow';
+import { setSnow, tubeSnow } from './render/snow';
+import { SnowSlide } from './render/snowSlide';
 import { buildSeasonBar } from './ui/seasonBar';
 import { buildStage, cameraPresets, type CameraPreset } from './scene/stage';
 import { FixedStepper } from './sim/fixedStep';
@@ -98,6 +99,22 @@ const sim = new ShishiodoshiSim({ ...defaultConfig, inflow: { ...defaultConfig.i
 const simView = new SimView(sim, world, water, stage.env, new THREE.Color('#d9c89a'));
 probe.inspect.sim = sim;
 probe.inspect.water = water;
+// Winter: the snow on the tube slides off when it tips (the amount on the tube alone is `tubeSnow`,
+// which falls quickly and builds up again slowly), and lumps of it fly and fall.
+const snowSlide = new SnowSlide(
+  { center: world.basin.center, bowlRadius: world.basin.bowlRadius, level: world.basin.waterLevel },
+  (x, z) => water.addDrop(new THREE.Vector3(x, world.basin.waterLevel, z), 0.008, -0.25),
+);
+scene.add(snowSlide.mesh);
+let tubeSnowLevel = season.snow;
+tubeSnow.value = season.snow;
+function shakeSnow(): void {
+  if (season.snow <= 0 || tubeSnow.value < 0.35) return;
+  const t = sim.cfg.tube;
+  world.tube.updateMatrixWorld();
+  snowSlide.trigger(world.tube, -t.back * 0.6, t.front - t.cut - 0.02, t.radius, new THREE.Vector3(Math.cos(sim.state.angle), Math.sin(sim.state.angle), 0), 12);
+  tubeSnowLevel = 0.1;
+}
 // offline sound for tools/audio.mjs: WAV bytes as base64
 probe.inspect.renderAudio = async (seconds: number, start: number) => {
   const { renderOffline } = await import('./audio/offline');
@@ -222,6 +239,7 @@ const step = (h: number) => {
   sim.step(h);
   const events = sim.drainEvents();
   graph.record(sim, events.flatMap((e) => (e.type === 'strike' ? [e] : [])));
+  for (const e of events) if (e.type === 'frontStop') shakeSnow();
   pending.push(...events);
 };
 // ?at=T (for screenshots): fast-forward to 0.6 s before T, run on (so ripples develop), and freeze at T
@@ -246,6 +264,9 @@ renderer.setAnimationLoop((timestamp) => {
   pending.length = 0;
   simView.update(stepper.alpha, dt);
   canopy.update(sim.state.time, season.wind);
+  snowSlide.update(dt);
+  tubeSnowLevel = Math.min(season.snow, tubeSnowLevel + dt * 0.012);
+  tubeSnow.value = tubeSnow.value > tubeSnowLevel ? tubeSnowLevel + (tubeSnow.value - tubeSnowLevel) * Math.exp(-dt / 0.18) : tubeSnowLevel;
   if (quality.shadowEvery > 1 && probe.frames % quality.shadowEvery === 0) renderer.shadowMap.needsUpdate = true;
   garden.update(sim.state.time, season.wind);
   falling?.update(sim.state.time, season.wind);
@@ -298,6 +319,8 @@ async function changeSeason(name: SeasonName, instant = false): Promise<void> {
   season = next;
   setMossColor(next.foliage.moss);
   setSnow(next.snow);
+  tubeSnowLevel = next.snow;
+  tubeSnow.value = next.snow;
   stage.setSeason(next);
   renderer.shadowMap.needsUpdate = true;
   renderer.toneMappingExposure = next.exposure;

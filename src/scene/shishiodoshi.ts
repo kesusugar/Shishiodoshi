@@ -1,7 +1,7 @@
 import * as THREE from 'three';
 import type { Canopy } from '../render/canopy';
 import { addGardenFog, type EnvUniforms } from '../render/env';
-import { snowify } from '../render/snow';
+import { snowify, tubeSnow } from '../render/snow';
 import { mossyGround, weatheredWood } from '../render/textures';
 import { defaultConfig, kakei as kakeiCfg, type SimConfig } from '../sim/config';
 import { basinSpec, buildBasin } from './basin';
@@ -74,6 +74,7 @@ export function buildShishiodoshi(season: Season, env: EnvUniforms, canopy: Cano
     fresh: bamboo.fresh,
     aged: bamboo.aged,
     seed: 101,
+    snow: tubeSnow,
   };
   const tube = new THREE.Group();
   tube.position.copy(layout.pivot);

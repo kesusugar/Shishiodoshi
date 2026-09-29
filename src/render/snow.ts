@@ -19,6 +19,9 @@ import { chainCompile } from './shaderChain';
  * roughnessmap_fragment and normal_fragment_maps): snow comes after them, so it lies on the moss.
  */
 export const snowUniform = { value: 0 };
+/** The snow on the tube alone, so it can slide off when the tube tips (the season's amount otherwise). */
+export const tubeSnow = { value: 0 };
+
 export function setSnow(amount: number): void {
   snowUniform.value = amount;
 }
@@ -40,14 +43,15 @@ float snowCover(vec3 n, vec3 p, float fine) {
 
 /**
  * @param depth how thick a fully covered surface grows (m): a stone 0.014, a bamboo culm 0.011
+ * @param amount the uniform holding how much snow there is (default: the whole scene's)
  * @param drift extra depth (m) that comes and goes across the surface in broad drifts (the ground):
  *   the surface is raised and its normal tilted along the slope of the drifts
  */
-export function snowify(mat: THREE.Material, depth: number, drift = 0): void {
+export function snowify(mat: THREE.Material, depth: number, drift = 0, amount: { value: number } = snowUniform): void {
   chainCompile(
     mat,
     (sh) => {
-      sh.uniforms.uSnow = snowUniform;
+      sh.uniforms.uSnow = amount;
       const driftAt = (p: string) => `${drift.toFixed(4)} * (snNoise(vec3(${p}.x * 0.8, 0.0, ${p}.z * 0.8)) + 0.25 * snNoise(vec3(${p}.x * 3.5, 1.0, ${p}.z * 3.5)))`;
       sh.vertexShader = sh.vertexShader
         .replace('#include <common>', `#include <common>\n${SNOW_GLSL}\nvarying vec3 vSnowN;\nvarying vec3 vSnowP;`)

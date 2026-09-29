@@ -42,7 +42,7 @@ export class SimView {
     const { spout, velocity, flow } = cfg.inflow;
     this.kakeiStream.set(new THREE.Vector3(spout.x, spout.y, 0), new THREE.Vector3(velocity.x, velocity.y, 0), flow, 0, 0);
     this.pour = new Stream(env, 0.8);
-    this.pour.uFoam.value = 0.55;
+    this.pour.uFoam.value = 0.7;
     // the pour leaves the lip as a sheet that tears into strands and then drops a hand's width down
     this.pour.uBreak.value = 0.085;
     this.pour.uTear.value = 0.9;
@@ -126,7 +126,9 @@ export class SimView {
           const side = (this.rand() - 0.5) * Math.max(sp.width, 0.01) * 0.7;
           this.tmp.set(lip.x + vel.x * t, lip.y + vel.y * t - 4.905 * t * t, lip.z + side);
           this.sprayVel.set(vel.x * (0.8 + 0.3 * this.rand()), vel.y - 9.81 * t, side * 4);
-          this.splash.launch(this.tmp, this.sprayVel, 0.0006 + 0.0012 * this.rand());
+          // (mostly fine droplets, now and then a big one)
+          const big = this.rand();
+          this.splash.launch(this.tmp, this.sprayVel, 0.0005 + 0.0034 * big * big * big);
         }
       }
       // where it lands in the basin: a small, local disturbance at the impact point (a pour from a
@@ -142,7 +144,7 @@ export class SimView {
         this.splashAcc += 110 * k * dt;
         const n = Math.floor(this.splashAcc);
         this.splashAcc -= n;
-        this.splash.emit(this.tmp.set(lip.x + vel.x * t, cfg.basinLevel, 0), n, [0.2, 0.6], [0.0006, 0.0018], new THREE.Vector3(vel.x * 0.2, 0, 0));
+        this.splash.emit(this.tmp.set(lip.x + vel.x * t, cfg.basinLevel, 0), n, [0.2, 0.7], [0.0005, 0.0034], new THREE.Vector3(vel.x * 0.2, 0, 0));
         this.floating?.push(this.tmp.set(lip.x + vel.x * t, cfg.basinLevel, 0), 6 * k, dt);
         this.overflow?.feed(sp.flow, dt);
       }

@@ -119,6 +119,8 @@ export class Stream {
           // entrained air: streaks that move with the water (they are fixed to where it left the lip)
           float streak = n21(vec2(vFlow.x * 60.0, vFlow.y * 7.0)) * n21(vec2(vFlow.x * 23.0 + 3.1, vFlow.y * 13.0));
           float foam = uFoam * smoothstep(0.15, 0.45, streak);
+          // right at the lip the water is still churning: white, dense with air, thinning as it falls
+          foam = max(foam, uFoam * 1.15 * (1.0 - smoothstep(0.0, 0.06, vT)) * (0.55 + 0.45 * n21(vec2(vFlow.x * 90.0, vFlow.y * 11.0))));
           vec3 white = vec3(0.75, 0.8, 0.8) * (0.35 + 0.25 * max(dot(n, uSunDir), 0.0)) + uSunCol * 0.04;
           // what is left of the view straight through: most of it, a little tinted
           float through = (1.0 - F) * (1.0 - foam) * 0.72;
