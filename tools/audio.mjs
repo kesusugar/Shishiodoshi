@@ -1,6 +1,7 @@
 // Render the sound offline and draw its spectrogram (PLAN.md 7章, verification).
 //
-//   node tools/audio.mjs [--seconds=10] [--start=15]     -> tools/out/audio.wav, tools/out/audio-spec.png
+//   node tools/audio.mjs [--seconds=10] [--start=15] [--season=spring|summer|autumn|winter] [--name=audio]
+//                                                        -> tools/out/<name>.wav, tools/out/<name>-spec.png
 //
 // The page runs a fresh simulation, fast-forwards it silently by `start` seconds, then renders
 // `seconds` of sound in an OfflineAudioContext with the same synthesiser the live page uses.
@@ -18,7 +19,7 @@ await mkdir(outDir, { recursive: true });
 const app = await openApp({ swiftshader: !!args.swiftshader });
 let wav;
 try {
-  await app.load('');
+  await app.load(args.season ? `season=${args.season}` : '');
   const b64 = await app.page.evaluate(([s, t]) => window.__shishi.inspect.renderAudio(s, t), [seconds, start]);
   wav = Buffer.from(b64, 'base64');
 } finally {

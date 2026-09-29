@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import { mulberry32 } from '../../scene/random';
 import { leafGeometry } from '../../scene/leaves';
+import { chainCompile } from '../shaderChain';
 
 /**
  * Fallen maple leaves afloat on the basin. Each vertex of a leaf rides on the water's surface as the
@@ -22,13 +23,15 @@ export class FloatingLeaves {
   private readonly leaves: Leaf[] = [];
   private readonly rand = mulberry32(88);
   private time = 0;
+  private nextSlot = 0;
 
-  constructor(private readonly water: WaterSurfaceRef, texture: THREE.Texture, colours: string[]) {
-    const geo = leafGeometry(0.055, 8).rotateX(-Math.PI / 2); // fine enough to bend over the ripples
+  /** @param geometry a leaf or petal, facing +z and fine enough to bend over the ripples (default: a maple leaf) */
+  constructor(private readonly water: WaterSurfaceRef, texture: THREE.Texture, colours: string[], geometry: THREE.BufferGeometry = leafGeometry(0.055, 8)) {
+    const geo = geometry.rotateX(-Math.PI / 2);
     const R = water.bowlRadius;
     for (let i = 0; i < colours.length; i++) {
       const mat = new THREE.MeshStandardMaterial({ map: texture, color: colours[i], alphaTest: 0.5, side: THREE.DoubleSide, roughness: 0.35 });
-      mat.onBeforeCompile = (sh) => {
+      chainCompile(mat, (sh) => {
         sh.uniforms.uSurf = water.uSurf;
         sh.vertexShader = sh.vertexShader
           .replace('#include <common>', `#include <common>
@@ -51,7 +54,7 @@ export class FloatingLeaves {
               objectNormal = normalize(objectNormal + vec3(-sl.y, 0.0, -sl.z) * 3.0);
             }`,
           );
-      };
+      }, `floatingLeaf ${water.center.x} ${water.center.z} ${R}`);
       const mesh = new THREE.Mesh(geo, mat);
       mesh.receiveShadow = true;
       mesh.renderOrder = 2;
@@ -61,6 +64,27 @@ export class FloatingLeaves {
       this.leaves.push(leaf);
       this.group.add(mesh);
     }
+  }
+
+  /**
+   * A leaf that has just landed at (x, z) (world): it takes the place of the one that has been afloat
+   * longest and drifts from there on.
+   */
+  spawn(x: number, z: number, color: string): void {
+    const l = this.leaves[this.nextSlot];
+    this.nextSlot = (this.nextSlot + 1) % this.leaves.length;
+    if (!l) return;
+    l.x = x - this.water.center.x;
+    l.z = z - this.water.center.z;
+    l.vx = l.vz = 0;
+    l.spin = (this.rand() - 0.5) * 0.3;
+    (l.mesh.material as THREE.MeshStandardMaterial).color.set(color);
+    l.mesh.rotation.y = this.rand() * Math.PI * 2;
+  }
+
+  dispose(): void {
+    for (const l of this.leaves) (l.mesh.material as THREE.Material).dispose();
+    this.leaves[0]?.mesh.geometry.dispose();
   }
 
   /** Water plunging in at `at` (world) with a strength (roughly m/s of outward push at 5 cm). */

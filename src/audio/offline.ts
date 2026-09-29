@@ -9,12 +9,18 @@ import { AudioEngine } from './engine';
  * OfflineAudioContext, pausing every 1/60 s to feed it, exactly as the live page does. Returns a
  * 16-bit stereo WAV.
  */
-export async function renderOffline(seconds: number, start = 0, sampleRate = 48000): Promise<ArrayBuffer> {
+export async function renderOffline(
+  seconds: number,
+  start = 0,
+  sampleRate = 48000,
+  season?: { name: 'spring' | 'summer' | 'autumn' | 'winter'; wind: number },
+): Promise<ArrayBuffer> {
   const sim = new ShishiodoshiSim();
   for (let t = 0; t < start; t += SIM_DT) sim.step(SIM_DT);
   sim.drainEvents();
   const ctx = new OfflineAudioContext(2, Math.ceil(seconds * sampleRate), sampleRate);
   const engine = await AudioEngine.create(ctx);
+  if (season) engine.setSeason(season.name, season.wind);
   const frame = 1 / 60;
   const offset = -sim.state.time; // audio time = sim time - start
   // before each frame's audio, step the simulation through that frame and send what happened

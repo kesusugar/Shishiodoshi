@@ -19,6 +19,8 @@
  * - The landing: bubbles and a soft splash where the poured water reaches the basin, following
  *   the flow arriving there (the pour's flow delayed by its fall time).
  * - Wind in the leaves, faint.
+ * - The season's air, faint too: birdsong in spring, crickets and rustling dry leaves in autumn, and in
+ *   winter a muffling of everything (snow soaks up sound: less shimmer, a shorter room).
  */
 
 declare const sampleRate: number;
@@ -40,6 +42,8 @@ interface ParamsMsg {
   pourFlow: number; // m^3/s over the lip (the drain rate)
   landFlow: number; // m^3/s of poured water reaching the basin now
   wind: number;
+  /** The season's air (0..1 each): birdsong, crickets, dry leaves rustling, and how much snow muffles everything. */
+  season: { birds: number; insects: number; leaves: number; muffle: number };
   gains: { knock: number; water: number; ambient: number };
 }
 
@@ -243,16 +247,92 @@ class GardenRoom {
   }
 }
 
+/**
+ * A bird singing now and then: a phrase of a few short notes, each a whistle that slides between two
+ * pitches (2.4-5.5 kHz) under a rounded envelope, with a little vibrato. `level` sets how often.
+ */
+class Bird {
+  private gap: number;
+  private notesLeft = 0;
+  private t = 0;
+  private dur = 0;
+  private f0 = 0;
+  private f1 = 0;
+  private amp = 0;
+  private phase = 0;
+  private base: number;
+  constructor(private readonly rng: Rng, private readonly range: [number, number]) {
+    this.gap = 1 + rng.next() * 4;
+    this.base = range[0] + rng.next() * (range[1] - range[0]);
+  }
+  tick(dt: number, level: number): number {
+    if (this.dur === 0) {
+      // between notes: wait, then start the next one (or, after a pause, a new phrase)
+      this.gap -= dt * (0.2 + level);
+      if (this.gap > 0) return 0;
+      if (this.notesLeft === 0) {
+        this.notesLeft = 2 + Math.floor(this.rng.next() * 4);
+        this.base = this.range[0] + this.rng.next() * (this.range[1] - this.range[0]);
+      }
+      this.notesLeft--;
+      this.dur = 0.05 + this.rng.next() * 0.09;
+      this.f0 = this.base * (0.85 + this.rng.next() * 0.3);
+      this.f1 = this.f0 * (this.rng.next() < 0.5 ? 0.7 + this.rng.next() * 0.2 : 1.15 + this.rng.next() * 0.3);
+      this.amp = 0.6 + this.rng.next() * 0.4;
+      this.t = 0;
+    }
+    const p = this.t / this.dur;
+    const f = (this.f0 + (this.f1 - this.f0) * p) * (1 + 0.012 * Math.sin(this.t * 90));
+    this.phase += (TWO_PI * f) / sampleRate;
+    const env = Math.sin(Math.PI * p) ** 1.5;
+    this.t += dt;
+    if (this.t >= this.dur) {
+      this.dur = 0;
+      this.gap = this.notesLeft > 0 ? 0.05 + this.rng.next() * 0.07 : 2.5 + this.rng.next() * 6;
+    }
+    return Math.sin(this.phase) * env * this.amp;
+  }
+}
+
+/** A cricket: a pure high tone in short trills (pulses of about 30 Hz), a burst on, a rest off. */
+class Cricket {
+  private phase = 0;
+  private t: number;
+  constructor(private readonly f: number, private readonly on: number, private readonly off: number, offset: number) {
+    this.t = offset;
+  }
+  tick(dt: number): number {
+    this.t += dt;
+    const cycle = this.on + this.off;
+    const c = this.t % cycle;
+    if (c > this.on) return 0;
+    const env = Math.sin((Math.PI * c) / this.on) ** 0.5;
+    const pulse = 0.5 + 0.5 * Math.sin(TWO_PI * 34 * this.t);
+    this.phase += (TWO_PI * this.f) / sampleRate;
+    return Math.sin(this.phase) * env * pulse * pulse;
+  }
+}
+
 class ShishiSynth extends AudioWorkletProcessor {
   private readonly rng = new Rng();
   private readonly strikes: StrikeMsg[] = [];
   private p: ParamsMsg = {
     type: 'params', streamTarget: 'mouth', streamFlow: 0, fallHeight: 0.1, airLength: 0.4, pourFlow: 0, landFlow: 0, wind: 0.25,
+    season: { birds: 0, insects: 0, leaves: 0, muffle: 0 },
     gains: { knock: 1, water: 1, ambient: 1 },
   };
   // knocks ringing (a strike and its bounces can overlap)
   private readonly knocks: Knock[] = [];
   private readonly room = new GardenRoom();
+  // the season's air (levels glide toward what the season asks for)
+  private readonly birds = [new Bird(this.rng, [2400, 3400]), new Bird(this.rng, [3600, 5200])];
+  private readonly crickets = [new Cricket(4300, 0.9, 0.5, 0), new Cricket(4900, 1.1, 0.7, 0.4), new Cricket(3900, 0.8, 0.9, 0.9)];
+  private readonly rustleHp = new OnePole();
+  private readonly rustleLp = new OnePole();
+  private crackle = 0;
+  private readonly muffleL = new OnePole();
+  private readonly muffleR = new OnePole();
+  private sl = { birds: 0, insects: 0, leaves: 0, muffle: 0 };
   private readonly wet: [number, number] = [0, 0];
   // water
   private readonly bubbles: Bubble[] = [];
@@ -281,6 +361,8 @@ class ShishiSynth extends AudioWorkletProcessor {
     this.rushLp.setCutoff(1800);
     this.landHp.setCutoff(500);
     this.landLp.setCutoff(3000);
+    this.rustleHp.setCutoff(2500);
+    this.rustleLp.setCutoff(7000);
     this.windLp.setCutoff(500);
     this.windLp2.setCutoff(180);
     this.setAir(0.4);
@@ -317,6 +399,10 @@ class ShishiSynth extends AudioWorkletProcessor {
     const n = L.length;
     const dt = 1 / sampleRate;
     const p = this.p, g = p.gains;
+    for (const k of ['birds', 'insects', 'leaves', 'muffle'] as const) this.sl[k] += (p.season[k] - this.sl[k]) * 0.004;
+    const sl = this.sl;
+    this.muffleL.setCutoff(16000 - 11500 * sl.muffle);
+    this.muffleR.setCutoff(16000 - 11500 * sl.muffle);
     // air column follows the water level smoothly
     this.setAir(this.airLen + (p.airLength - this.airLen) * 0.05);
     // bubble rates from where the water lands (per second)
@@ -378,15 +464,27 @@ class ShishiSynth extends AudioWorkletProcessor {
       const gust = 0.5 + 0.5 * Math.sin(TWO_PI * this.windPhase) * Math.sin(TWO_PI * this.windPhase * 0.37 + 1.3);
       const wind = this.windLp.lp(this.windLp2.lp(this.brown) * 0.5 + this.brown * 0.3) * (0.2 + 0.8 * gust) * p.wind * 0.08;
 
+      // the season's air, faint: birds, crickets, and dry leaves rustling and crackling in the gusts
+      let sea = 0;
+      if (sl.birds > 0.001) sea += (this.birds[0].tick(dt, sl.birds) + 0.7 * this.birds[1].tick(dt, sl.birds)) * 0.045 * sl.birds;
+      if (sl.insects > 0.001) sea += (this.crickets[0].tick(dt) + this.crickets[1].tick(dt) + this.crickets[2].tick(dt)) * 0.012 * sl.insects;
+      if (sl.leaves > 0.001) {
+        const gustNow = 0.3 + 0.7 * (0.5 + 0.5 * Math.sin(TWO_PI * this.windPhase * 1.7));
+        this.crackle = this.crackle * 0.9965 + (this.rng.next() < 50 * dt * gustNow ? this.rng.bi() : 0);
+        sea += (this.rustleLp.lp(this.rustleHp.hp(this.rng.bi())) * 0.02 * gustNow + this.rustleHp.hp(this.crackle) * 0.05) * sl.leaves;
+      }
+
       const water = trickle * MIX.trickle + rush + landing;
       const dryKnock = knock * MIX.knock * g.knock, dryWater = water * g.water;
       const mono = dryKnock + dryWater;
-      this.room.tick(dryKnock * MIX.roomKnock + dryWater * MIX.roomWater, this.wet);
+      // (snow soaks up the room: a short, quiet tail in winter)
+      this.room.tick((dryKnock * MIX.roomKnock + dryWater * MIX.roomWater) * (1 - 0.7 * sl.muffle), this.wet);
       // the tube and basin sit a little left of centre; the wind is wide
-      const l = Math.tanh(mono * 1.05 + this.wet[0] + wind * g.ambient);
-      const r = Math.tanh(mono * 0.95 + this.wet[1] - wind * g.ambient * 0.6);
-      L[i] = l;
-      R[i] = r;
+      const l = Math.tanh(mono * 1.05 + this.wet[0] + (wind + sea) * g.ambient);
+      const r = Math.tanh(mono * 0.95 + this.wet[1] - wind * g.ambient * 0.6 + sea * g.ambient * 0.8);
+      // muffled by snow: the same signal with the highs rolled off, as much as the season asks
+      L[i] = l + (this.muffleL.lp(l) - l) * sl.muffle;
+      R[i] = r + (this.muffleR.lp(r) - r) * sl.muffle;
     }
     return true;
   }

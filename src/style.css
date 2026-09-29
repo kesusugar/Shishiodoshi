@@ -143,3 +143,38 @@ body {
 #settings .reset {
   align-self: flex-start;
 }
+
+#seasons {
+  position: fixed;
+  top: 8px;
+  left: 50%;
+  transform: translateX(-50%);
+  display: flex;
+  gap: 4px;
+}
+
+#seasons button {
+  min-width: 40px;
+  min-height: 36px; /* easy to hit with a finger */
+  padding: 4px 8px;
+  border: 1px solid rgb(255 255 255 / 0.35);
+  border-radius: 4px;
+  background: rgb(0 0 0 / 0.4);
+  color: #e8ecdf;
+  font: 16px system-ui, 'Segoe UI', 'Yu Gothic UI', sans-serif;
+  cursor: pointer;
+}
+
+#seasons button[aria-pressed='true'] {
+  background: rgb(232 236 223 / 0.85);
+  color: #111;
+}
+
+#fade {
+  position: fixed;
+  inset: 0;
+  background: #000;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.45s ease;
+}

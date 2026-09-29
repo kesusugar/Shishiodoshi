@@ -4,7 +4,12 @@ import { mulberry32 } from './random';
 import type { Season } from './seasons';
 import { leafGeometry, mapleLeafTexture } from './leaves';
 import { mossyRockMaterial } from './rockMaterial';
-import { rockGeometry } from './shishiodoshi';
+import { snowify } from '../render/snow';
+import { translucentLeaves } from './translucent';
+import { buildBareBranch, buildCherryBranch } from './cherryBranch';
+import { petalGeometry } from './blossom';
+import { petalTexture } from './blossom';
+import { rockGeometry, smoothNormals } from './shishiodoshi';
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 
 /**
@@ -53,6 +58,7 @@ export function buildGarden(season: Season, _canopy: Canopy['uniforms'], basin: 
       return g;
     });
     const mat = new THREE.MeshStandardMaterial({ roughness: 0.35, metalness: 0, vertexColors: false });
+    snowify(mat, 0.006);
     const perVariant = 900;
     const m = new THREE.Matrix4(), q = new THREE.Quaternion(), e = new THREE.Euler(), p = new THREE.Vector3(), s = new THREE.Vector3();
     const col = new THREE.Color();
@@ -110,6 +116,33 @@ export function buildGarden(season: Season, _canopy: Canopy['uniforms'], basin: 
 
   root.add(contactShadows(contacts));
 
+  // ---- shrubs behind the boulders (winter): dark evergreen humps, white on top
+  if (season.garden.shrubs > 0) {
+    const mat = new THREE.MeshStandardMaterial({ color: '#2c4632', roughness: 1 });
+    snowify(mat, 0.03);
+    const spots: [number, number, number][] = [
+      [-1.6, -1.7, 0.55], [-0.5, -2.0, 0.6], [0.75, -1.8, 0.5], [1.7, -1.5, 0.55], [-2.0, -0.7, 0.45],
+      [2.0, -0.4, 0.45], [0.1, -2.6, 0.7], [-1.2, -2.5, 0.65], [1.4, -2.5, 0.65],
+    ];
+    for (const [x, z, r] of spots.slice(0, season.garden.shrubs)) {
+      const g = new THREE.IcosahedronGeometry(1, 4);
+      const p = g.getAttribute('position') as THREE.BufferAttribute;
+      const v = new THREE.Vector3(), off = rand() * 10;
+      for (let i = 0; i < p.count; i++) {
+        v.fromBufferAttribute(p, i);
+        const lump = 1 + 0.16 * Math.sin(v.x * 5 + off) * Math.sin(v.y * 4.3 + off * 1.3) + 0.1 * Math.sin(v.z * 8 + off * 2);
+        p.setXYZ(i, v.x * lump, v.y * lump, v.z * lump);
+      }
+      g.computeVertexNormals();
+      smoothNormals(g);
+      const shrub = new THREE.Mesh(g, mat);
+      shrub.scale.set(r, r * 0.75, r);
+      shrub.position.set(x, r * 0.3, z);
+      shrub.receiveShadow = true;
+      root.add(shrub);
+    }
+  }
+
   // ---- ferns: clumps of fronds, each a curved stem with leaflets that shrink toward the tip
   {
     const frond = fernFrond(rand);
@@ -123,14 +156,14 @@ export function buildGarden(season: Season, _canopy: Canopy['uniforms'], basin: 
     const count = clumps.length * 9;
     const mesh = new THREE.InstancedMesh(frond, mat, count);
     const m = new THREE.Matrix4(), q = new THREE.Quaternion(), e = new THREE.Euler(), p = new THREE.Vector3(), s = new THREE.Vector3();
-    const col = new THREE.Color(), leaf = new THREE.Color(season.foliage.leaf);
+    const col = new THREE.Color(), leaf = new THREE.Color(season.garden.ferns);
     let n = 0;
     for (const [cx, cz, size] of clumps) {
       for (let i = 0; i < 9; i++) {
         const yaw = (i / 9) * Math.PI * 2 + rand() * 0.6;
         p.set(cx + (rand() - 0.5) * 0.04, 0, cz + (rand() - 0.5) * 0.04);
         q.setFromEuler(e.set(0, yaw, 0.35 + rand() * 0.5, 'YXZ'));
-        const k = size * (0.7 + rand() * 0.5);
+        const k = size * (0.7 + rand() * 0.5) * season.garden.fernScale;
         s.set(k, k, k);
         mesh.setMatrixAt(n, m.compose(p, q, s));
         col.copy(leaf).multiplyScalar(0.8 + rand() * 0.6);
@@ -151,7 +184,11 @@ export function buildGarden(season: Season, _canopy: Canopy['uniforms'], basin: 
   translucentLeaves(leafMat, new THREE.Color(season.foliage.leafLit));
   const twigMat = new THREE.MeshStandardMaterial({ color: '#3a2a1d', roughness: 0.85 });
   const branches: THREE.Group[] = [];
-  {
+  if (season.garden.branch === 'cherry' || season.garden.branch === 'bare') {
+    const bough = season.garden.branch === 'cherry' ? buildCherryBranch(rand, new THREE.Color('#ffb0c8')) : buildBareBranch(rand);
+    branches.push(bough.group);
+    root.add(bough.group);
+  } else if (season.garden.branch === 'maple') {
     // it comes in from beyond the right edge of the main view and droops down its right side
     const base = new THREE.Vector3(1.0, 1.02, 0.62);
     const bough = new THREE.CatmullRomCurve3([
@@ -200,6 +237,7 @@ export function buildGarden(season: Season, _canopy: Canopy['uniforms'], basin: 
     const mesh = new THREE.InstancedMesh(leafGeometry(0.065), leafMat, count);
     const m = new THREE.Matrix4(), q = new THREE.Quaternion(), q2 = new THREE.Quaternion(), p = new THREE.Vector3(), s = new THREE.Vector3();
     const col = new THREE.Color(), leaf = new THREE.Color(season.foliage.leaf), lit = new THREE.Color(season.foliage.leafLit);
+    const palette = season.garden.branchLeaves, paletteTotal = palette?.reduce((t, c) => t + c.weight, 0) ?? 0;
     const up = new THREE.Vector3(0, 1, 0), out = new THREE.Vector3(), zAxis = new THREE.Vector3(0, 0, 1);
     const normal = new THREE.Vector3(), tipNow = new THREE.Vector3(), tipWant = new THREE.Vector3();
     for (let i = 0; i < count; i++) {
@@ -219,9 +257,22 @@ export function buildGarden(season: Season, _canopy: Canopy['uniforms'], basin: 
       q.premultiply(q2);
       s.setScalar(0.75 + rand() * 0.5);
       mesh.setMatrixAt(i, m.compose(p, q, s));
-      // deep greens, some paler where young; a few already turning
-      col.copy(leaf).lerp(lit, rand() * rand() * 0.6).multiplyScalar(0.55 + rand() * 0.55);
-      if (rand() < 0.03) col.set('#b8761c');
+      if (palette) {
+        // the season's own colours, picked by weight, each leaf a little lighter or darker
+        let pick = rand() * paletteTotal;
+        let chosen = palette[0].color;
+        for (const c of palette) {
+          if ((pick -= c.weight) <= 0) {
+            chosen = c.color;
+            break;
+          }
+        }
+        col.set(chosen).multiplyScalar(0.75 + rand() * 0.5);
+      } else {
+        // deep greens, some paler where young; a few already turning
+        col.copy(leaf).lerp(lit, rand() * rand() * 0.6).multiplyScalar(0.55 + rand() * 0.55);
+        if (rand() < 0.03) col.set('#b8761c');
+      }
       mesh.setColorAt(i, col);
     }
     // it takes the dappled shadow (so it is not evenly lit); casting its own would cost more than it shows
@@ -269,24 +320,33 @@ export function buildGarden(season: Season, _canopy: Canopy['uniforms'], basin: 
     root.add(lantern);
   }
 
-  // ---- fallen leaves on the gravel (those afloat on the basin are render/water/floatingLeaves.ts)
-  const fallenMat = new THREE.MeshStandardMaterial({ map: mapleTex, alphaTest: 0.5, side: THREE.DoubleSide, roughness: 0.6 });
-  const fallenColours = FALLEN_COLOURS;
-  const fallenGeo = leafGeometry(0.05).rotateX(-Math.PI / 2);
-  for (let i = 0; i < 9; i++) {
-    const m = new THREE.MeshStandardMaterial().copy(fallenMat);
-    m.color = new THREE.Color(fallenColours[Math.floor(rand() * fallenColours.length)]).multiplyScalar(0.8);
-    const leaf = new THREE.Mesh(fallenGeo, m);
-    let x = 0, z = 0;
-    for (let k = 0; k < 20; k++) {
-      x = -0.9 + rand() * 1.8;
-      z = -0.2 + rand() * 0.9;
-      if (free(x, z, 0.02)) break;
+  // ---- fallen leaves on the ground (those afloat on the basin are render/water/floatingLeaves.ts)
+  {
+    const { colors, tone, count, size: leafSize } = season.garden.litter;
+    if (count > 0) {
+      const petals = season.garden.litter.shape === 'petal';
+      const fallenMat = new THREE.MeshStandardMaterial({ map: petals ? petalTexture() : mapleTex, alphaTest: 0.5, side: THREE.DoubleSide, roughness: 0.6 });
+      const mesh = new THREE.InstancedMesh((petals ? petalGeometry(leafSize) : leafGeometry(leafSize)).rotateX(-Math.PI / 2), fallenMat, count);
+      const m = new THREE.Matrix4(), q = new THREE.Quaternion(), e = new THREE.Euler(), p = new THREE.Vector3(), sc = new THREE.Vector3(1, 1, 1);
+      const col = new THREE.Color();
+      for (let i = 0; i < count; i++) {
+        col.set(colors[Math.floor(rand() * colors.length)]).multiplyScalar(tone);
+        let x = 0, z = 0;
+        for (let k = 0; k < 20; k++) {
+          x = -0.9 + rand() * 1.8;
+          z = -0.2 + rand() * 0.9;
+          if (free(x, z, 0.02)) break;
+        }
+        // a heap of leaves lies a little above the last: each at its own height, tilted a little
+        const y = count > 20 ? 0.012 + (i % 5) * 0.003 : 0.012;
+        p.set(x, y, z);
+        q.setFromEuler(e.set((rand() - 0.5) * 0.4, rand() * 6.28, (rand() - 0.5) * 0.4));
+        mesh.setMatrixAt(i, m.compose(p, q, sc));
+        mesh.setColorAt(i, col);
+      }
+      mesh.receiveShadow = true;
+      root.add(mesh);
     }
-    leaf.position.set(x, 0.012, z);
-    leaf.rotation.set((rand() - 0.5) * 0.4, rand() * 6.28, (rand() - 0.5) * 0.4);
-    leaf.receiveShadow = true;
-    root.add(leaf);
   }
 
   return {
@@ -341,27 +401,6 @@ function fernFrond(rand: () => number): THREE.BufferGeometry {
   return g;
 }
 
-
-/**
- * Leaves are thin: sunlight on their far side shows through, yellow-green (ref3's backlit maple).
- * Added to each direct light as diffuse light arriving through the blade, so it keeps that light's
- * shadow (a leaf in the shade of another does not glow).
- */
-function translucentLeaves(mat: THREE.MeshStandardMaterial, tint: THREE.Color): void {
-  mat.onBeforeCompile = (sh) => {
-    sh.uniforms.uLeafTint = { value: tint };
-    sh.fragmentShader = sh.fragmentShader
-      .replace('#include <common>', '#include <common>\nuniform vec3 uLeafTint;')
-      .replace(
-        '#include <lights_fragment_begin>',
-        THREE.ShaderChunk.lights_fragment_begin.replaceAll(
-          'RE_Direct( directLight, geometryPosition, geometryNormal, geometryViewDir, geometryClearcoatNormal, material, reflectedLight );',
-          'RE_Direct( directLight, geometryPosition, geometryNormal, geometryViewDir, geometryClearcoatNormal, material, reflectedLight );\n' +
-            'reflectedLight.directDiffuse += uLeafTint * material.diffuseColor * directLight.color * max( 0.0, -dot( geometryNormal, directLight.direction ) ) * 0.9;',
-        ),
-      );
-  };
-}
 
 /**
  * Soft dark patches on the ground where things stand (ambient occlusion the shadow map cannot give:
