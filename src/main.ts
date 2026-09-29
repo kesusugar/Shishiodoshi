@@ -17,7 +17,7 @@ import { Falling, HeroFall } from './render/falling';
 import { petalGeometry, petalTexture } from './scene/blossom';
 import { buildGarden } from './scene/garden';
 import { buildShishiodoshi } from './scene/shishiodoshi';
-import { pickSeason, rememberSeason, seasons, type Season, type SeasonName } from './scene/seasons';
+import { pickSeason, rememberSeason, saveRound, savedRound, seasonNames, seasons, type Season, type SeasonName } from './scene/seasons';
 import { disposeTree } from './scene/dispose';
 import { setMossColor } from './scene/rockMaterial';
 import { setSnow } from './render/snow';
@@ -319,8 +319,35 @@ async function changeSeason(name: SeasonName, instant = false): Promise<void> {
   switching = false;
 }
 probe.inspect.changeSeason = changeSeason;
-const seasonBar = capture ? null : buildSeasonBar(season.name, (n) => void changeSeason(n));
+// The seasons can come round by themselves (⟳): every ROUND_SECONDS the next one; picking one by hand stops it.
+const ROUND_SECONDS = Number(params.get('round')) || 50; // (?round=5 for testing)
+let roundTimer: ReturnType<typeof setInterval> | undefined;
+function setRound(on: boolean): void {
+  clearInterval(roundTimer);
+  roundTimer = undefined;
+  if (on) {
+    roundTimer = setInterval(() => {
+      const names = seasonNames();
+      void changeSeason(names[(names.indexOf(season.name) + 1) % names.length]);
+    }, ROUND_SECONDS * 1000);
+  }
+  seasonBar?.setAuto(on);
+  saveRound(on);
+}
+const seasonBar = capture
+  ? null
+  : buildSeasonBar(
+      season.name,
+      (n) => {
+        setRound(false);
+        void changeSeason(n);
+      },
+      setRound,
+      false,
+    );
 if (seasonBar) document.body.append(seasonBar.el);
+if (seasonBar && savedRound()) setRound(true);
+probe.inspect.setRound = setRound;
 
 const applySettings = (st: Settings) => {
   sim.cfg.inflow.flow = st.flow * 1e-6;

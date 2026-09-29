@@ -180,6 +180,10 @@ body {
   cursor: pointer;
 }
 
+#seasons .round {
+  margin-left: 6px;
+}
+
 #seasons button[aria-pressed='true'] {
   background: rgb(232 236 223 / 0.85);
   color: #111;
