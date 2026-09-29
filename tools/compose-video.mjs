@@ -51,6 +51,16 @@ async function captionPng(text, style, file) {
 // Slow the sound to `rate` of its speed: first as tape does (the pitch falls, at most an octave), the
 // rest by time-stretching (which keeps the pitch), so a hit stays a knock and not a rumble.
 function slowFilter(rate) {
+  if (rate > 1) {
+    const t = [];
+    let r = rate;
+    while (r > 2) {
+      t.push(2);
+      r /= 2;
+    }
+    t.push(r);
+    return t.map((x) => `atempo=${x.toFixed(4)}`).join(',');
+  }
   const tape = Math.max(0.5, Math.sqrt(rate));
   let rest = rate / tape;
   const tempos = [];

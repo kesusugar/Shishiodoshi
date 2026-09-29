@@ -1,0 +1,83 @@
+{
+ "output": "promo",
+ "width": 1280,
+ "height": 720,
+ "fps": 30,
+ "crossfade": 0.4,
+ "segments": [
+  {
+   "clip": "hit-real",
+   "soundRate": 1
+  },
+  {
+   "clip": "hit-slow",
+   "soundRate": 0.2,
+   "caption": {
+    "text": "竹が石を打つ、その一瞬。",
+    "style": "note",
+    "from": 0.6,
+    "to": 3.6
+   }
+  },
+  {
+   "clip": "season-spring",
+   "soundRate": 1,
+   "caption": {
+    "text": "春",
+    "style": "label",
+    "from": 0.2,
+    "to": 2.8
+   }
+  },
+  {
+   "clip": "season-summer",
+   "soundRate": 1,
+   "caption": {
+    "text": "夏",
+    "style": "label",
+    "from": 0.2,
+    "to": 2.8
+   }
+  },
+  {
+   "clip": "season-autumn",
+   "soundRate": 1,
+   "caption": {
+    "text": "秋",
+    "style": "label",
+    "from": 0.2,
+    "to": 2.8
+   }
+  },
+  {
+   "clip": "season-winter",
+   "soundRate": 1,
+   "caption": {
+    "text": "冬",
+    "style": "label",
+    "from": 0.2,
+    "to": 2.8
+   }
+  },
+  {
+   "clip": "flow-low",
+   "soundRate": 4,
+   "caption": {
+    "text": "水が少ない　8 mL/秒 ― 約53秒に一度（4倍速）",
+    "style": "note",
+    "from": 0.2,
+    "to": 3.4
+   }
+  },
+  {
+   "clip": "flow-high",
+   "soundRate": 4,
+   "caption": {
+    "text": "水が多い　40 mL/秒 ― 約12秒に一度（4倍速）",
+    "style": "note",
+    "from": 0.2,
+    "to": 3.4
+   }
+  }
+ ]
+}

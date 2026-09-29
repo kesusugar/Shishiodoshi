@@ -1,0 +1,40 @@
+{
+ "width": 1280,
+ "height": 720,
+ "fps": 30,
+ "name": "season-spring",
+ "seconds": 3,
+ "season": "spring",
+ "start": 25.2,
+ "speed": 1,
+ "camera": [
+  {
+   "t": 0,
+   "position": [
+    -0.34,
+    0.55,
+    1.02
+   ],
+   "target": [
+    -0.3,
+    0.47,
+    0
+   ],
+   "fov": 38
+  },
+  {
+   "t": 9,
+   "position": [
+    -0.3,
+    0.55,
+    0.98
+   ],
+   "target": [
+    -0.3,
+    0.47,
+    0
+   ],
+   "fov": 37
+  }
+ ]
+}

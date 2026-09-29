@@ -2,39 +2,40 @@
  "width": 1280,
  "height": 720,
  "fps": 30,
- "name": "hit-real",
- "seconds": 6,
+ "name": "flow-high",
+ "seconds": 3.6,
  "season": "summer",
- "start": 24.0,
- "speed": 1,
+ "start": 6,
+ "flow": 40,
+ "speed": 4,
  "camera": [
   {
    "t": 0,
    "position": [
-    -0.42,
-    0.5,
-    0.85
+    -0.3,
+    0.55,
+    1.05
    ],
    "target": [
-    -0.42,
-    0.45,
+    -0.3,
+    0.47,
     0
    ],
-   "fov": 36
+   "fov": 38
   },
   {
-   "t": 6,
+   "t": 9,
    "position": [
-    -0.45,
-    0.5,
-    0.8
+    -0.3,
+    0.55,
+    1.0
    ],
    "target": [
-    -0.42,
-    0.45,
+    -0.3,
+    0.47,
     0
    ],
-   "fov": 36
+   "fov": 37
   }
  ]
 }
