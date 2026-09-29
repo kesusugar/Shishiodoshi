@@ -43,6 +43,8 @@ export class AudioEngine {
     const base = offset ?? this.ctx.currentTime + LOOKAHEAD - simNow;
     for (const e of events) {
       if (e.type === 'strike') this.node.port.postMessage({ type: 'strike', time: base + e.time, intensity: e.intensity, airLength: e.airLength });
+      // the belly landing on the crossbar: intensity relative to a normal tip (about 1.3 m/s at the mouth)
+      if (e.type === 'frontStop') this.node.port.postMessage({ type: 'stop', time: base + e.time, intensity: Math.min(1.5, e.speed / 1.3), airLength: 0.05 });
     }
     const cfg = sim.cfg, out = sim.out, st = sim.state;
     // the poured water reaches the basin one fall time after leaving the lip
