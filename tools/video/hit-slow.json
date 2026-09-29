@@ -1,0 +1,8 @@
+{
+  "name": "hit-slow", "width": 1280, "height": 720, "fps": 30, "seconds": 4.2,
+  "season": "summer", "start": 26.55, "speed": 0.2,
+  "camera": [
+    { "t": 0, "position": [-0.98, 0.5, 0.5], "target": [-0.62, 0.46, 0.0], "fov": 30 },
+    { "t": 4.2, "position": [-0.9, 0.48, 0.44], "target": [-0.62, 0.46, 0.0], "fov": 28 }
+  ]
+}

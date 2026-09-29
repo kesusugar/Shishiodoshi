@@ -1,0 +1,40 @@
+{
+ "width": 1280,
+ "height": 720,
+ "fps": 30,
+ "name": "hit-real",
+ "seconds": 6,
+ "season": "summer",
+ "start": 24.0,
+ "speed": 1,
+ "camera": [
+  {
+   "t": 0,
+   "position": [
+    -0.42,
+    0.5,
+    0.85
+   ],
+   "target": [
+    -0.42,
+    0.45,
+    0
+   ],
+   "fov": 36
+  },
+  {
+   "t": 6,
+   "position": [
+    -0.45,
+    0.5,
+    0.8
+   ],
+   "target": [
+    -0.42,
+    0.45,
+    0
+   ],
+   "fov": 36
+  }
+ ]
+}

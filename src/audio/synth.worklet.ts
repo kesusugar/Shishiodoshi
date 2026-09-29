@@ -20,7 +20,9 @@
  *   the flow arriving there (the pour's flow delayed by its fall time).
  * - Wind in the leaves, faint.
  * - The season's air, faint too: birdsong in spring, crickets and rustling dry leaves in autumn, and in
- *   winter a muffling of everything (snow soaks up sound: less shimmer, a shorter room).
+ *   winter a muffling of everything (snow soaks up sound: less shimmer, a shorter room). The hour
+ *   picks the voice: cicadas by day and higurashi at dusk in summer, frogs on spring and summer nights,
+ *   an owl far off on winter nights.
  */
 
 declare const sampleRate: number;
@@ -43,7 +45,7 @@ interface ParamsMsg {
   landFlow: number; // m^3/s of poured water reaching the basin now
   wind: number;
   /** The season's air (0..1 each): birdsong, crickets, dry leaves rustling, and how much snow muffles everything. */
-  season: { birds: number; insects: number; leaves: number; muffle: number };
+  season: { birds: number; insects: number; leaves: number; muffle: number; cicada: number; higurashi: number; frogs: number; owl: number };
   gains: { knock: number; water: number; ambient: number };
 }
 
@@ -313,12 +315,161 @@ class Cricket {
   }
 }
 
+/**
+ * A cicada (semi): a swell of buzzing in the 5-6 kHz band, its shell driven by the tymbals at about 70
+ * pulses a second, rising over a second or two, held, and dropping away; then a rest.
+ */
+class Cicada {
+  private phase = 0;
+  private phase2 = 0;
+  private t = 0;
+  private dur = 0;
+  private gap: number;
+  constructor(private readonly rng: Rng, private readonly f: number, gap0: number) {
+    this.gap = gap0 + rng.next() * 3;
+  }
+  tick(dt: number): number {
+    if (this.dur === 0) {
+      this.gap -= dt;
+      if (this.gap > 0) return 0;
+      this.dur = 2.5 + this.rng.next() * 3;
+      this.t = 0;
+    }
+    const p = this.t / this.dur;
+    // rises quickly, holds, then falls
+    const env = Math.min(1, p * 6) * (1 - Math.max(0, p - 0.75) * 4);
+    this.phase += (TWO_PI * this.f) / sampleRate;
+    this.phase2 += (TWO_PI * this.f * 1.27) / sampleRate;
+    const buzz = 0.5 + 0.5 * Math.sin(TWO_PI * 68 * this.t);
+    this.t += dt;
+    if (this.t >= this.dur) {
+      this.dur = 0;
+      this.gap = 0.6 + this.rng.next() * 2.5;
+    }
+    return (Math.sin(this.phase) + 0.6 * Math.sin(this.phase2)) * env * (0.35 + 0.65 * buzz * buzz);
+  }
+}
+
+/**
+ * A higurashi (evening cicada, "kana-kana"): a run of short, ringing notes that sweep down from about
+ * 4.2 kHz, quickening as the phrase goes on, then a long pause.
+ */
+class Higurashi {
+  private phase = 0;
+  private gap: number;
+  private notes = 0;
+  private noteT = 0;
+  private noteLen = 0.1;
+  constructor(private readonly rng: Rng, private readonly f: number) {
+    this.gap = 1 + rng.next() * 4;
+  }
+  tick(dt: number): number {
+    if (this.notes === 0 && this.noteT >= this.noteLen) {
+      this.gap -= dt;
+      if (this.gap > 0) return 0;
+      this.notes = 9 + Math.floor(this.rng.next() * 8);
+      this.noteT = 0;
+      this.noteLen = 0.16;
+    }
+    if (this.noteT >= this.noteLen) {
+      // next note: shorter each time
+      this.notes--;
+      if (this.notes === 0) {
+        this.gap = 3 + this.rng.next() * 6;
+        return 0;
+      }
+      this.noteT = 0;
+      this.noteLen = Math.max(0.07, this.noteLen * 0.93);
+    }
+    const p = this.noteT / this.noteLen;
+    const f = this.f * (1.06 - 0.16 * p);
+    this.phase += (TWO_PI * f) / sampleRate;
+    this.noteT += dt;
+    const env = Math.min(1, p * 8) * (1 - p) ** 1.4;
+    return Math.sin(this.phase) * env;
+  }
+}
+
+/** A frog: a call of a few croaks, each a pulsed low buzz around 0.8-1 kHz with harmonics, then a pause. */
+class Frog {
+  private phase = 0;
+  private gap: number;
+  private croaks = 0;
+  private t = 0;
+  private len = 0.2;
+  private idle = true;
+  constructor(private readonly rng: Rng, private readonly f: number) {
+    this.gap = 0.5 + rng.next() * 5;
+  }
+  tick(dt: number): number {
+    if (this.idle) {
+      this.gap -= dt;
+      if (this.gap > 0) return 0;
+      this.idle = false;
+      this.croaks = 3 + Math.floor(this.rng.next() * 5);
+      this.t = 0;
+    }
+    this.t += dt;
+    const cycle = 0.34;
+    const c = this.t % cycle;
+    if (this.t >= this.croaks * cycle) {
+      this.idle = true;
+      this.gap = 3 + this.rng.next() * 7;
+      return 0;
+    }
+    if (c > this.len) return 0;
+    const p = c / this.len;
+    const f = this.f * (1 + 0.08 * p);
+    this.phase += (TWO_PI * f) / sampleRate;
+    const pulses = 0.5 + 0.5 * Math.sin(TWO_PI * 34 * c);
+    const env = Math.sin(Math.PI * p) ** 1.2 * pulses;
+    return (Math.sin(this.phase) + 0.5 * Math.sin(2 * this.phase) + 0.3 * Math.sin(3 * this.phase)) * env;
+  }
+}
+
+/** An owl a long way off: two soft, low "hoo"s a little apart, now and then. */
+class Owl {
+  private phase = 0;
+  private gap: number;
+  private t = -1;
+  constructor(private readonly rng: Rng) {
+    this.gap = 4 + rng.next() * 6;
+  }
+  tick(dt: number): number {
+    if (this.t < 0) {
+      this.gap -= dt;
+      if (this.gap > 0) return 0;
+      this.t = 0;
+    }
+    this.t += dt;
+    const total = 1.7;
+    if (this.t >= total) {
+      this.t = -1;
+      this.gap = 12 + this.rng.next() * 14;
+      return 0;
+    }
+    // "hoo" (0 - 0.55 s) ... "hoo-hoo" (0.9 - 1.7 s, lower)
+    let env = 0, f = 0;
+    if (this.t < 0.55) {
+      env = Math.sin((Math.PI * this.t) / 0.55) ** 2;
+      f = 400 - 25 * (this.t / 0.55);
+    } else if (this.t > 0.9) {
+      const q = (this.t - 0.9) / 0.8;
+      env = Math.sin(Math.PI * q) ** 2 * 0.85;
+      f = 370 - 25 * q;
+    }
+    if (env === 0) return 0;
+    this.phase += (TWO_PI * f) / sampleRate;
+    return (Math.sin(this.phase) + 0.25 * Math.sin(2 * this.phase)) * env;
+  }
+}
+
 class ShishiSynth extends AudioWorkletProcessor {
   private readonly rng = new Rng();
   private readonly strikes: StrikeMsg[] = [];
   private p: ParamsMsg = {
     type: 'params', streamTarget: 'mouth', streamFlow: 0, fallHeight: 0.1, airLength: 0.4, pourFlow: 0, landFlow: 0, wind: 0.25,
-    season: { birds: 0, insects: 0, leaves: 0, muffle: 0 },
+    season: { birds: 0, insects: 0, leaves: 0, muffle: 0, cicada: 0, higurashi: 0, frogs: 0, owl: 0 },
     gains: { knock: 1, water: 1, ambient: 1 },
   };
   // knocks ringing (a strike and its bounces can overlap)
@@ -332,7 +483,11 @@ class ShishiSynth extends AudioWorkletProcessor {
   private crackle = 0;
   private readonly muffleL = new OnePole();
   private readonly muffleR = new OnePole();
-  private sl = { birds: 0, insects: 0, leaves: 0, muffle: 0 };
+  private sl = { birds: 0, insects: 0, leaves: 0, muffle: 0, cicada: 0, higurashi: 0, frogs: 0, owl: 0 };
+  private readonly cicadas = [new Cicada(this.rng, 5200, 0), new Cicada(this.rng, 6100, 1.7)];
+  private readonly higurashis = [new Higurashi(this.rng, 4100), new Higurashi(this.rng, 3700)];
+  private readonly frogs = [new Frog(this.rng, 780), new Frog(this.rng, 1010), new Frog(this.rng, 900)];
+  private readonly owl = new Owl(this.rng);
   private readonly wet: [number, number] = [0, 0];
   // water
   private readonly bubbles: Bubble[] = [];
@@ -399,7 +554,7 @@ class ShishiSynth extends AudioWorkletProcessor {
     const n = L.length;
     const dt = 1 / sampleRate;
     const p = this.p, g = p.gains;
-    for (const k of ['birds', 'insects', 'leaves', 'muffle'] as const) this.sl[k] += (p.season[k] - this.sl[k]) * 0.004;
+    for (const k of ['birds', 'insects', 'leaves', 'muffle', 'cicada', 'higurashi', 'frogs', 'owl'] as const) this.sl[k] += (p.season[k] - this.sl[k]) * 0.004;
     const sl = this.sl;
     this.muffleL.setCutoff(16000 - 11500 * sl.muffle);
     this.muffleR.setCutoff(16000 - 11500 * sl.muffle);
@@ -468,6 +623,10 @@ class ShishiSynth extends AudioWorkletProcessor {
       let sea = 0;
       if (sl.birds > 0.001) sea += (this.birds[0].tick(dt, sl.birds) + 0.7 * this.birds[1].tick(dt, sl.birds)) * 0.045 * sl.birds;
       if (sl.insects > 0.001) sea += (this.crickets[0].tick(dt) + this.crickets[1].tick(dt) + this.crickets[2].tick(dt)) * 0.012 * sl.insects;
+      if (sl.cicada > 0.001) sea += (this.cicadas[0].tick(dt) + 0.8 * this.cicadas[1].tick(dt)) * 0.018 * sl.cicada;
+      if (sl.higurashi > 0.001) sea += (this.higurashis[0].tick(dt) + 0.7 * this.higurashis[1].tick(dt)) * 0.03 * sl.higurashi;
+      if (sl.frogs > 0.001) sea += (this.frogs[0].tick(dt) + this.frogs[1].tick(dt) + this.frogs[2].tick(dt)) * 0.03 * sl.frogs;
+      if (sl.owl > 0.001) sea += this.owl.tick(dt) * 0.03 * sl.owl;
       if (sl.leaves > 0.001) {
         const gustNow = 0.3 + 0.7 * (0.5 + 0.5 * Math.sin(TWO_PI * this.windPhase * 1.7));
         this.crackle = this.crackle * 0.9965 + (this.rng.next() < 50 * dt * gustNow ? this.rng.bi() : 0);

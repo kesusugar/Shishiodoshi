@@ -17,7 +17,7 @@ import { Falling, HeroFall } from './render/falling';
 import { petalGeometry, petalTexture } from './scene/blossom';
 import { buildGarden } from './scene/garden';
 import { buildShishiodoshi } from './scene/shishiodoshi';
-import { pickSeason, rememberSeason, saveRound, savedRound, seasonNames, seasons, type Season, type SeasonName } from './scene/seasons';
+import { atTime, pickSeason, pickTime, rememberSeason, saveRound, savedRound, seasonNames, seasons, type Season, type SeasonName, type TimeName } from './scene/seasons';
 import { disposeTree } from './scene/dispose';
 import { setMossColor } from './scene/rockMaterial';
 import { setSnow, tubeSnow } from './render/snow';
@@ -35,6 +35,8 @@ import { buildSettingsPanel, defaultSettings, loadSettings, type Settings } from
 // simulation by 20 s before the first frame (to capture a given moment, e.g. mid-pour).
 const params = new URLSearchParams(location.search);
 const capture = params.has('capture');
+// ?manual (with ?capture): the page does not run by itself; tools/record.mjs advances it frame by frame
+const manual = params.has('manual');
 const view = (params.get('view') ?? 'main') as CameraPreset;
 // ?off=dof,stream,water,shadow switches features off (for measuring what costs what)
 const off = new Set((params.get('off') ?? '').split(','));
@@ -63,7 +65,7 @@ try {
 renderer.setPixelRatio(Math.min(window.devicePixelRatio, quality.maxPixelRatio));
 renderer.outputColorSpace = THREE.SRGBColorSpace;
 renderer.toneMapping = THREE.AgXToneMapping;
-renderer.toneMappingExposure = pickSeason(params).exposure; // summer 1.2: ref3 is a bright photo, mid-tones up, the sun's highlights still held by AgX
+renderer.toneMappingExposure = atTime(pickSeason(params), pickTime(params)).exposure; // summer 1.2: ref3 is a bright photo, mid-tones up, the sun's highlights still held by AgX
 renderer.shadowMap.enabled = !off.has('shadow');
 renderer.shadowMap.type = quality.softShadows ? THREE.PCFSoftShadowMap : THREE.PCFShadowMap;
 // on phones the shadow map is redrawn every few frames (the sun and the leaves overhead move slowly)
@@ -74,7 +76,8 @@ probe.gpu = gpuName(renderer.getContext() as WebGL2RenderingContext);
 const hud = new Hud(hudEl, `${probe.gpu}  [${quality.name}]`);
 if (capture) hudEl.hidden = true;
 
-let season: Season = pickSeason(params);
+let timeOfDay: TimeName = pickTime(params);
+let season: Season = atTime(pickSeason(params), timeOfDay);
 setSnow(season.snow);
 probe.season = season.name;
 const scene = new THREE.Scene();
@@ -93,6 +96,7 @@ if (!off.has('water')) scene.add(water.mesh);
 
 // Settings (flow and volumes; the tools always run with the defaults)
 const settings: Settings = capture ? { ...defaultSettings } : loadSettings();
+if (params.has('flow')) settings.flow = Number(params.get('flow')); // (?flow=30 mL/s: for recording)
 
 // The simulation (with its own copy of the inflow, which the settings change), and what it moves
 const sim = new ShishiodoshiSim({ ...defaultConfig, inflow: { ...defaultConfig.inflow, flow: settings.flow * 1e-6 } });
@@ -116,9 +120,9 @@ function shakeSnow(): void {
   tubeSnowLevel = 0.1;
 }
 // offline sound for tools/audio.mjs: WAV bytes as base64
-probe.inspect.renderAudio = async (seconds: number, start: number) => {
+probe.inspect.renderAudio = async (seconds: number, start: number, flowMl?: number) => {
   const { renderOffline } = await import('./audio/offline');
-  const bytes = new Uint8Array(await renderOffline(seconds, start, 48000, season));
+  const bytes = new Uint8Array(await renderOffline(seconds, start, 48000, season, flowMl));
   let s = '';
   for (let i = 0; i < bytes.length; i += 0x8000) s += String.fromCharCode(...bytes.subarray(i, i + 0x8000));
   return btoa(s);
@@ -248,17 +252,9 @@ for (let t = at > 0 ? Math.max(0, at - 0.6) : Number(params.get('t') ?? 0); t > 
 pending.length = 0;
 
 renderer.compile(scene, camera);
-renderer.setAnimationLoop((timestamp) => {
-  clock.update(timestamp);
-  // a stalled tab (or the first frame after loading) must not dump seconds of forcing at once;
-  // and the first frame can come out negative (its timestamp predates heavy work before it)
-  const real = Math.min(Math.max(clock.getDelta(), 0), 0.1);
-  // screenshots advance exactly 1/60 s per frame, so a given frame count is a given moment
-  let dt = capture ? 1 / 60 : real;
-  if (at > 0 && sim.state.time >= at - 1e-9) {
-    dt = 0;
-    probe.frozen = true;
-  }
+
+/** One frame: advance the simulation by `dt` seconds, update everything that moves, draw. */
+function runFrame(dt: number): void {
   stepper.advance(dt, step);
   audio?.send(sim, pending, sim.state.time);
   pending.length = 0;
@@ -272,10 +268,10 @@ renderer.setAnimationLoop((timestamp) => {
   falling?.update(sim.state.time, season.wind);
   hero?.update(dt);
   if (!off.has('water')) water.update(dt);
-  controls.update();
+  if (!manual) controls.update();
   if (off.has('dof')) renderer.render(scene, camera);
   else {
-    post.adapt(dt);
+    if (!manual) post.adapt(dt);
     post.render(controls.target);
   }
 
@@ -286,7 +282,44 @@ renderer.setAnimationLoop((timestamp) => {
   probe.simTime = st.time;
   probe.fps = hud.currentFps;
   probe.ready = true;
-});
+}
+
+if (manual) {
+  // Recording (tools/record.mjs): no animation loop. The caller advances the world by any step it
+  // likes (1/30 s for a 30 fps film, less for slow motion) and takes the picture straight away
+  // (the canvas can only be read in the same task as the draw), and moves the camera and the water.
+  controls.enabled = false;
+  probe.inspect.advance = (dt: number, jpegQuality = 0.95) => {
+    runFrame(dt);
+    return renderer.domElement.toDataURL('image/jpeg', jpegQuality);
+  };
+  probe.inspect.setCamera = (position: number[], target: number[], fov: number) => {
+    camera.position.set(position[0], position[1], position[2]);
+    controls.target.set(target[0], target[1], target[2]);
+    camera.fov = fov;
+    camera.lookAt(controls.target);
+    camera.updateProjectionMatrix();
+  };
+  probe.inspect.setFlow = (mlPerSecond: number) => {
+    sim.cfg.inflow.flow = mlPerSecond * 1e-6;
+    simView.setInflow(sim.cfg.inflow.flow);
+  };
+  probe.ready = true;
+} else {
+  renderer.setAnimationLoop((timestamp) => {
+    clock.update(timestamp);
+    // a stalled tab (or the first frame after loading) must not dump seconds of forcing at once;
+    // and the first frame can come out negative (its timestamp predates heavy work before it)
+    const real = Math.min(Math.max(clock.getDelta(), 0), 0.1);
+    // screenshots advance exactly 1/60 s per frame, so a given frame count is a given moment
+    let dt = capture ? 1 / 60 : real;
+    if (at > 0 && sim.state.time >= at - 1e-9) {
+      dt = 0;
+      probe.frozen = true;
+    }
+    runFrame(dt);
+  });
+}
 
 // A click (not a drag) on the water makes a ripple.
 {
@@ -308,9 +341,11 @@ renderer.setAnimationLoop((timestamp) => {
 const fadeEl = document.querySelector<HTMLElement>('#fade')!;
 let switching = false;
 const wait = (ms: number) => new Promise((r) => setTimeout(r, ms));
-async function changeSeason(name: SeasonName, instant = false): Promise<void> {
-  const next = seasons[name];
-  if (!next || switching || next.name === season.name) return;
+async function changeSeason(name: SeasonName, instant = false, time: TimeName = timeOfDay): Promise<void> {
+  const base = seasons[name];
+  if (!base || switching || (name === season.name && time === timeOfDay)) return;
+  const next = atTime(base, time);
+  timeOfDay = time;
   switching = true;
   if (!instant) {
     fadeEl.style.opacity = '1';
@@ -333,8 +368,8 @@ async function changeSeason(name: SeasonName, instant = false): Promise<void> {
   buildSeasonLife();
   probe.season = next.name;
   rememberSeason(next.name);
-  seasonBar?.select(next.name);
-  audio?.setSeason(next.name, next.wind);
+  seasonBar?.select(next.name, time);
+  audio?.setSeason(next.name, next.wind, next.time);
   if (!instant) {
     await new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r)));
     fadeEl.style.opacity = '0';
@@ -367,6 +402,8 @@ const seasonBar = capture
       },
       setRound,
       false,
+      timeOfDay,
+      (t) => void changeSeason(season.name, false, t),
     );
 if (seasonBar) document.body.append(seasonBar.el);
 if (seasonBar && savedRound()) setRound(true);
@@ -400,7 +437,7 @@ if (!capture) {
   );
   void waitForStart(document.querySelector<HTMLElement>('#start')!).then(async (ctx) => {
     audio = await AudioEngine.create(ctx);
-    audio.setSeason(season.name, season.wind);
+    audio.setSeason(season.name, season.wind, season.time);
     applySettings(settings);
   });
 }
