@@ -11,6 +11,10 @@ export interface AudioGains {
   ambient: number;
 }
 
+/** How loud each of the air's voices is (0..1); the synth glides toward these. */
+interface AirLevels { birds: number; insects: number; leaves: number; muffle: number; cicada: number; higurashi: number; frogs: number; owl: number }
+const QUIET: AirLevels = { birds: 0, insects: 0, leaves: 0, muffle: 0, cicada: 0, higurashi: 0, frogs: 0, owl: 0 };
+
 /**
  * Connects the simulation to the synthesiser (src/audio/synth.worklet.ts). Strikes are scheduled
  * at their simulation time mapped onto the audio clock; continuous quantities (where the stream
@@ -21,7 +25,7 @@ export class AudioEngine {
   readonly master: GainNode;
   gains: AudioGains = { knock: 1, water: 1, ambient: 1 };
   /** The season's air (see the synth): set by setSeason. */
-  private air: { wind: number; season: { birds: number; insects: number; leaves: number; muffle: number } } = { wind: 0.25, season: { birds: 0, insects: 0, leaves: 0, muffle: 0 } };
+  private air: { wind: number; season: AirLevels } = { wind: 0.25, season: { ...QUIET } };
   /** Pour flow keyed by the time it arrives in the basin. */
   private readonly pourHistory: { time: number; flow: number }[] = [];
 
@@ -32,15 +36,19 @@ export class AudioEngine {
     this.node.connect(this.master).connect(ctx.destination);
   }
 
-  /** The season's sound: birds in spring, crickets and leaves in autumn, muffled in snow, and its wind. */
-  setSeason(name: 'spring' | 'summer' | 'autumn' | 'winter', wind: number): void {
-    const S = {
-      spring: { birds: 1, insects: 0, leaves: 0, muffle: 0 },
-      summer: { birds: 0, insects: 0, leaves: 0, muffle: 0 },
-      autumn: { birds: 0, insects: 1, leaves: 1, muffle: 0 },
-      winter: { birds: 0, insects: 0, leaves: 0, muffle: 1 },
-    } as const;
-    this.air = { wind, season: { ...S[name] } };
+  /**
+   * The air's sound for a season and hour: birds in spring by day, cicadas (day) and higurashi (dusk)
+   * in summer, frogs on spring and summer nights, crickets and leaves in autumn, an owl on winter
+   * nights, everything muffled in snow; and the wind.
+   */
+  setSeason(name: 'spring' | 'summer' | 'autumn' | 'winter', wind: number, time: 'day' | 'dusk' | 'night' = 'day'): void {
+    const T: Record<typeof name, Record<typeof time, Partial<AirLevels>>> = {
+      spring: { day: { birds: 1 }, dusk: { birds: 0.35 }, night: { frogs: 0.5 } },
+      summer: { day: { cicada: 1 }, dusk: { higurashi: 1 }, night: { frogs: 1 } },
+      autumn: { day: { birds: 0.3, leaves: 1 }, dusk: { insects: 0.4, leaves: 1 }, night: { insects: 1, leaves: 0.4 } },
+      winter: { day: { muffle: 1 }, dusk: { muffle: 1 }, night: { muffle: 1, owl: 1 } },
+    };
+    this.air = { wind, season: { ...QUIET, ...T[name][time] } };
   }
 
   static async create(ctx: BaseAudioContext): Promise<AudioEngine> {

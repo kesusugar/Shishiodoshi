@@ -369,7 +369,7 @@ async function changeSeason(name: SeasonName, instant = false, time: TimeName = 
   probe.season = next.name;
   rememberSeason(next.name);
   seasonBar?.select(next.name, time);
-  audio?.setSeason(next.name, next.wind);
+  audio?.setSeason(next.name, next.wind, next.time);
   if (!instant) {
     await new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r)));
     fadeEl.style.opacity = '0';
@@ -437,7 +437,7 @@ if (!capture) {
   );
   void waitForStart(document.querySelector<HTMLElement>('#start')!).then(async (ctx) => {
     audio = await AudioEngine.create(ctx);
-    audio.setSeason(season.name, season.wind);
+    audio.setSeason(season.name, season.wind, season.time);
     applySettings(settings);
   });
 }

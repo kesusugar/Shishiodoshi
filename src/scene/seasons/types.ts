@@ -83,6 +83,8 @@ export interface Season {
   /** Mean wind strength 0..1; drives leaf motion, ripples and the wind sound together. */
   wind: number;
   garden: GardenStyle;
+  /** The hour, when it is not day (set by atTime): the sounds of the air follow it. */
+  time?: TimeName;
   /** How brightly the stone lantern burns (0 = as by day; 1 = night: its window glows and lights the stones near it). */
   lamp?: number;
   /** Things falling from the sky (petals, leaves, snow); none in summer. */

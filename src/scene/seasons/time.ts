@@ -26,6 +26,7 @@ export function atTime(base: Season, time: TimeName): Season {
       foliage: { ...f, leaf: mix(f.leaf, '#8a4a2a', 0.3), leafLit: mix(f.leafLit, '#ffb060', 0.6), shade: scale(f.shade, 0.6), alt: f.alt ? mix(f.alt, '#8a4a2a', 0.3) : undefined },
       exposure: base.exposure * 1.05,
       lamp: 0.35,
+      time: 'dusk',
     };
   }
   return {
@@ -36,5 +37,6 @@ export function atTime(base: Season, time: TimeName): Season {
     foliage: { ...f, leaf: scale(mix(f.leaf, '#1a2a40', 0.6), 0.5), leafLit: '#3f5a86', shade: '#04070d', alt: f.alt ? scale(mix(f.alt, '#1a2a40', 0.6), 0.5) : undefined, gain: 1 },
     exposure: base.exposure * 1.15,
     lamp: 1,
+    time: 'night',
   };
 }

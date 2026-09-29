@@ -14,7 +14,7 @@ export async function renderOffline(
   seconds: number,
   start = 0,
   sampleRate = 48000,
-  season?: { name: 'spring' | 'summer' | 'autumn' | 'winter'; wind: number },
+  season?: { name: 'spring' | 'summer' | 'autumn' | 'winter'; wind: number; time?: 'day' | 'dusk' | 'night' },
   /** the kakei's flow (mL/s), if not the default */
   flowMl?: number,
 ): Promise<ArrayBuffer> {
@@ -23,7 +23,7 @@ export async function renderOffline(
   sim.drainEvents();
   const ctx = new OfflineAudioContext(2, Math.ceil(seconds * sampleRate), sampleRate);
   const engine = await AudioEngine.create(ctx);
-  if (season) engine.setSeason(season.name, season.wind);
+  if (season) engine.setSeason(season.name, season.wind, season.time);
   const frame = 1 / 60;
   const offset = -sim.state.time; // audio time = sim time - start
   // before each frame's audio, step the simulation through that frame and send what happened
