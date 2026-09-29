@@ -12,8 +12,8 @@ export interface AudioGains {
 }
 
 /** How loud each of the air's voices is (0..1); the synth glides toward these. */
-interface AirLevels { birds: number; insects: number; leaves: number; muffle: number; cicada: number; higurashi: number; frogs: number; owl: number }
-const QUIET: AirLevels = { birds: 0, insects: 0, leaves: 0, muffle: 0, cicada: 0, higurashi: 0, frogs: 0, owl: 0 };
+interface AirLevels { birds: number; insects: number; leaves: number; muffle: number; frogs: number; owl: number }
+const QUIET: AirLevels = { birds: 0, insects: 0, leaves: 0, muffle: 0, frogs: 0, owl: 0 };
 
 /**
  * Connects the simulation to the synthesiser (src/audio/synth.worklet.ts). Strikes are scheduled
@@ -37,14 +37,13 @@ export class AudioEngine {
   }
 
   /**
-   * The air's sound for a season and hour: birds in spring by day, cicadas (day) and higurashi (dusk)
-   * in summer, frogs on spring and summer nights, crickets and leaves in autumn, an owl on winter
+   * The air's sound for a season and hour: birds in spring by day, frogs on spring nights, crickets and leaves in autumn, an owl on winter
    * nights, everything muffled in snow; and the wind.
    */
   setSeason(name: 'spring' | 'summer' | 'autumn' | 'winter', wind: number, time: 'day' | 'dusk' | 'night' = 'day'): void {
     const T: Record<typeof name, Record<typeof time, Partial<AirLevels>>> = {
       spring: { day: { birds: 1 }, dusk: { birds: 0.35 }, night: { frogs: 0.5 } },
-      summer: { day: { cicada: 1 }, dusk: { higurashi: 1 }, night: { frogs: 1 } },
+      summer: { day: {}, dusk: {}, night: {} }, // the plainest: only the water and the bamboo
       autumn: { day: { birds: 0.3, leaves: 1 }, dusk: { insects: 0.4, leaves: 1 }, night: { insects: 1, leaves: 0.4 } },
       winter: { day: { muffle: 1 }, dusk: { muffle: 1 }, night: { muffle: 1, owl: 1 } },
     };
