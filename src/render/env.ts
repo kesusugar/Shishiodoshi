@@ -84,13 +84,14 @@ export function sunDirection(season: Season): THREE.Vector3 {
 }
 
 export function envUniforms(season: Season) {
+  const gain = season.foliage.gain ?? 1;
   return {
     uSunDir: { value: sunDirection(season) },
     uSunCol: { value: linear(season.sun.color, season.sun.intensity) },
-    uLeafCol: { value: linear(season.foliage.leaf, 0.6) },
-    uLeafAlt: { value: linear(season.foliage.alt ?? season.foliage.leaf, 0.6) },
-    uLeafLit: { value: linear(season.foliage.leafLit, 1.1) },
-    uShadeCol: { value: linear(season.foliage.shade, 0.5) },
+    uLeafCol: { value: linear(season.foliage.leaf, 0.6 * gain) },
+    uLeafAlt: { value: linear(season.foliage.alt ?? season.foliage.leaf, 0.6 * gain) },
+    uLeafLit: { value: linear(season.foliage.leafLit, 1.1 * gain) },
+    uShadeCol: { value: linear(season.foliage.shade, 0.5 * Math.sqrt(gain)) },
     uSkyCol: { value: linear(season.sky.top, 1.2) },
     uEnvCube: { value: null as THREE.CubeTexture | null },
   };

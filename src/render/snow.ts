@@ -38,14 +38,33 @@ float snowCover(vec3 n, vec3 p, float fine) {
 }
 `;
 
-/** @param depth how thick a fully covered surface grows (m): a stone 0.014, a bamboo culm 0.011 */
-export function snowify(mat: THREE.Material, depth: number): void {
+/**
+ * @param depth how thick a fully covered surface grows (m): a stone 0.014, a bamboo culm 0.011
+ * @param drift extra depth (m) that comes and goes across the surface in broad drifts (the ground):
+ *   the surface is raised and its normal tilted along the slope of the drifts
+ */
+export function snowify(mat: THREE.Material, depth: number, drift = 0): void {
   chainCompile(
     mat,
     (sh) => {
       sh.uniforms.uSnow = snowUniform;
+      const driftAt = (p: string) => `${drift.toFixed(4)} * (snNoise(vec3(${p}.x * 0.8, 0.0, ${p}.z * 0.8)) + 0.25 * snNoise(vec3(${p}.x * 3.5, 1.0, ${p}.z * 3.5)))`;
       sh.vertexShader = sh.vertexShader
         .replace('#include <common>', `#include <common>\n${SNOW_GLSL}\nvarying vec3 vSnowN;\nvarying vec3 vSnowP;`)
+        .replace(
+          '#include <beginnormal_vertex>',
+          drift > 0
+            ? `#include <beginnormal_vertex>
+          {
+            // tilt the normal along the slope of the drifts, so they show in the light
+            vec3 dp = position;
+            float d0 = ${driftAt('dp')};
+            vec3 dx = dp + vec3(0.04, 0.0, 0.0), dz = dp + vec3(0.0, 0.0, 0.04);
+            float gx = (${driftAt('dx')} - d0) / 0.04, gz = (${driftAt('dz')} - d0) / 0.04;
+            objectNormal = normalize(objectNormal + vec3(-gx, 0.0, -gz) * uSnow);
+          }`
+            : '#include <beginnormal_vertex>',
+        )
         .replace(
           '#include <begin_vertex>',
           `#include <begin_vertex>
@@ -58,7 +77,7 @@ export function snowify(mat: THREE.Material, depth: number): void {
             #endif
             vSnowN = normalize(sN * objectNormal);
             vSnowP = transformed;
-            transformed += normalize(objectNormal) * ${depth.toFixed(4)} * snowCover(vSnowN, vSnowP, 0.0);
+            transformed += normalize(objectNormal) * (${depth.toFixed(4)}${drift > 0 ? ` + ${driftAt('vSnowP')}` : ''}) * snowCover(vSnowN, vSnowP, 0.0);
           }`,
         );
       sh.fragmentShader = sh.fragmentShader
@@ -79,6 +98,6 @@ export function snowify(mat: THREE.Material, depth: number): void {
           totalEmissiveRadiance += vec3(1.0, 0.97, 0.92) * step(0.9965, snHash(floor(vSnowP * 420.0))) * snowK * 1.6;`,
         );
     },
-    `snow ${depth}`,
+    `snow ${depth} ${drift}`,
   );
 }

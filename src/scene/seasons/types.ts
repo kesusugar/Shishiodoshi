@@ -67,7 +67,7 @@ export interface Season {
   ambient: { envIntensity: number; fill: number; /** the fill light's sky and ground colours */ sky: string; ground: string };
   canopy: CanopyStyle;
   /** The out-of-focus garden around the scene (see render/env.ts). */
-  foliage: { leaf: string; leafLit: string; shade: string; moss: string; /** a second colour among the leaves (autumn's crimson among the orange); default = leaf */ alt?: string };
+  foliage: { leaf: string; leafLit: string; shade: string; moss: string; /** a second colour among the leaves (autumn's crimson among the orange); default = leaf */ alt?: string; /** brightens the out-of-focus surroundings (default 1) */ gain?: number };
   /** Tone-mapping exposure (brightness of the whole picture). */
   exposure: number;
   /** How much snow lies on everything (0 = none, 1 = winter); see render/snow.ts. */

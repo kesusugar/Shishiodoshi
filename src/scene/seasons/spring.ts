@@ -16,7 +16,7 @@ export const spring: Season = {
   ambient: { envIntensity: 0.75, fill: 0.2, sky: '#ffe6ef', ground: '#7a6a58' },
   // blossom is thick: many small pieces, and only small gaps for the sun
   canopy: { kind: 'blossom', clusters: 55, pieces: 3000, size: [6, 13] },
-  foliage: { leaf: '#ffd6e4', leafLit: '#ffffff', shade: '#d09cb4', moss: '#7fa62c', alt: '#ffffff' },
+  foliage: { leaf: '#ffd6e4', leafLit: '#ffffff', shade: '#d09cb4', moss: '#7fa62c', alt: '#ffffff', gain: 1.9 },
   snow: 0,
   exposure: 1.3,
   bamboo: { age: 0.9, fresh: '#8fa546', aged: '#caa565' },

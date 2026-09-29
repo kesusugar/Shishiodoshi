@@ -47,8 +47,8 @@ export function buildShishiodoshi(season: Season, env: EnvUniforms, canopy: Cano
   const groundMaps = mossyGround(21);
   const groundMat = new THREE.MeshStandardMaterial({ map: groundMaps.color, bumpMap: groundMaps.bump, bumpScale: 3, roughness: 1 });
   addGardenFog(groundMat, env, 1.6, 5.0, canopy);
-  snowify(groundMat, 0.012);
-  const ground = new THREE.Mesh(new THREE.CircleGeometry(12, 96), groundMat);
+  snowify(groundMat, 0.012, 0.03); // (a plane cut fine enough for the snow to lie in drifts)
+  const ground = new THREE.Mesh(new THREE.PlaneGeometry(24, 24, 200, 200), groundMat);
   ground.geometry.rotateX(-Math.PI / 2);
   const guv = ground.geometry.getAttribute('uv') as THREE.BufferAttribute;
   for (let i = 0; i < guv.count; i++) guv.setXY(i, guv.getX(i) * 36, guv.getY(i) * 36);

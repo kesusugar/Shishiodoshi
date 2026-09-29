@@ -308,10 +308,13 @@ export function buildGarden(season: Season, _canopy: Canopy['uniforms'], basin: 
     part(new THREE.CylinderGeometry(0.05, 0.06, 0.4, 12), 0.28);
     part(new THREE.CylinderGeometry(0.14, 0.1, 0.06, 6), 0.51);
     // the fire box, with a warm glow in its windows
-    const glow = new THREE.MeshStandardMaterial({ color: '#2a2016', emissive: new THREE.Color('#ffb060'), emissiveIntensity: 1.6 });
+    // (an orange, not white, glow; crossed by the lattice of the paper window)
+    const glow = new THREE.MeshStandardMaterial({ color: '#2a2016', emissive: new THREE.Color('#ff9a3a'), emissiveIntensity: 1.05 });
+    const lattice = new THREE.MeshStandardMaterial({ color: '#1a130d', roughness: 0.9 });
     part(new THREE.BoxGeometry(0.17, 0.17, 0.17), 0.63);
     part(new THREE.BoxGeometry(0.1, 0.1, 0.175), 0.63, glow);
     part(new THREE.BoxGeometry(0.175, 0.1, 0.1), 0.63, glow);
+    for (const [x, y, z] of [[0.008, 0.1, 0.18], [0.1, 0.008, 0.18], [0.18, 0.1, 0.008], [0.18, 0.008, 0.1]]) part(new THREE.BoxGeometry(x, y, z), 0.63, lattice);
     const roof = part(new THREE.ConeGeometry(0.26, 0.14, 6), 0.78);
     roof.rotation.y = Math.PI / 6;
     part(new THREE.SphereGeometry(0.04, 12, 8), 0.87);
