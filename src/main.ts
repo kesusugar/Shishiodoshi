@@ -7,7 +7,7 @@ import { gpuName, Hud } from './debug/hud';
 import { probe } from './debug/probe';
 import { Canopy } from './render/canopy';
 import { Post } from './render/post';
-import { pickQuality } from './render/quality';
+import { pickQuality, saveChoice, savedChoice } from './render/quality';
 import { BasinWater } from './render/water/basinWater';
 import { SimView } from './render/simView';
 import { waterBeads } from './render/water/beads';
@@ -65,6 +65,9 @@ renderer.toneMapping = THREE.AgXToneMapping;
 renderer.toneMappingExposure = pickSeason(params).exposure; // summer 1.2: ref3 is a bright photo, mid-tones up, the sun's highlights still held by AgX
 renderer.shadowMap.enabled = !off.has('shadow');
 renderer.shadowMap.type = quality.softShadows ? THREE.PCFSoftShadowMap : THREE.PCFShadowMap;
+// on phones the shadow map is redrawn every few frames (the sun and the leaves overhead move slowly)
+renderer.shadowMap.autoUpdate = quality.shadowEvery === 1;
+renderer.shadowMap.needsUpdate = true;
 
 probe.gpu = gpuName(renderer.getContext() as WebGL2RenderingContext);
 const hud = new Hud(hudEl, `${probe.gpu}  [${quality.name}]`);
@@ -141,7 +144,7 @@ function buildSeasonLife(): void {
   const style = season.falling;
   if (style && !off.has('falling')) {
     const tex = style.kind === 'leaf' ? garden.leafTexture : style.kind === 'petal' ? petalTexture() : null;
-    falling = new Falling(style, stage.env, tex, quality.name === 'low' ? 0.4 : 1);
+    falling = new Falling(style, stage.env, tex, quality.particleScale);
     scene.add(falling.mesh);
     if (style.landsInBasin) {
       hero = new HeroFall(
@@ -243,6 +246,7 @@ renderer.setAnimationLoop((timestamp) => {
   pending.length = 0;
   simView.update(stepper.alpha, dt);
   canopy.update(sim.state.time, season.wind);
+  if (quality.shadowEvery > 1 && probe.frames % quality.shadowEvery === 0) renderer.shadowMap.needsUpdate = true;
   garden.update(sim.state.time, season.wind);
   falling?.update(sim.state.time, season.wind);
   hero?.update(dt);
@@ -295,6 +299,7 @@ async function changeSeason(name: SeasonName, instant = false): Promise<void> {
   setMossColor(next.foliage.moss);
   setSnow(next.snow);
   stage.setSeason(next);
+  renderer.shadowMap.needsUpdate = true;
   renderer.toneMappingExposure = next.exposure;
   canopy.setStyle(next.canopy);
   waterSpec.wind = next.wind;
@@ -323,10 +328,26 @@ const applySettings = (st: Settings) => {
   if (audio) audio.gains = { knock: st.knock, water: st.water, ambient: st.ambient };
 };
 if (!capture) {
-  document.body.append(buildSettingsPanel(settings, (st) => {
-    Object.assign(settings, st);
-    applySettings(settings);
-  }));
+  document.body.append(
+    buildSettingsPanel(
+      settings,
+      (st) => {
+        Object.assign(settings, st);
+        applySettings(settings);
+      },
+      {
+        choice: savedChoice(),
+        current: quality.name,
+        // antialiasing and the shadow map's size are fixed when the page starts: apply by loading it again
+        onPick: (choice) => {
+          saveChoice(choice);
+          const url = new URL(location.href);
+          url.searchParams.delete('quality');
+          location.href = url.toString();
+        },
+      },
+    ),
+  );
   void waitForStart(document.querySelector<HTMLElement>('#start')!).then(async (ctx) => {
     audio = await AudioEngine.create(ctx);
     audio.setSeason(season.name, season.wind);

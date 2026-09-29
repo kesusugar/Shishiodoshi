@@ -1,3 +1,5 @@
+import type { QualityChoice, QualityName } from '../render/quality';
+
 /**
  * The settings panel (PLAN.md 8章): how much water the kakei gives (which sets how often the tube
  * knocks), and the volume of the knock, the water and the garden. A gear button opens it; the
@@ -35,7 +37,16 @@ function save(s: Settings): void {
   }
 }
 
-export function buildSettingsPanel(initial: Settings, onChange: (s: Settings) => void): HTMLElement {
+const QUALITY_LABEL: Record<QualityName, string> = { high: '高', medium: '中', low: '低' };
+
+/** The picture quality: the choice (自動 or one of three), what is in use now, and what to do on a change. */
+export interface QualityControl {
+  choice: QualityChoice;
+  current: QualityName;
+  onPick: (choice: QualityChoice) => void;
+}
+
+export function buildSettingsPanel(initial: Settings, onChange: (s: Settings) => void, quality?: QualityControl): HTMLElement {
   const s = { ...initial };
   const root = document.createElement('div');
   root.id = 'settings';
@@ -54,6 +65,19 @@ export function buildSettingsPanel(initial: Settings, onChange: (s: Settings) =>
       <label>まわりの音量 <span data-out="ambient"></span>
         <input type="range" data-key="ambient" min="0" max="1.5" step="0.05" />
       </label>
+      ${
+        quality
+          ? `<label>画質（いま：${QUALITY_LABEL[quality.current]}）
+        <select data-quality>
+          <option value="auto">自動</option>
+          <option value="high">高（きれい）</option>
+          <option value="medium">中</option>
+          <option value="low">低（軽い）</option>
+        </select>
+        <span class="hint">変えると読み込み直します（もう一度タップで開始）</span>
+      </label>`
+          : ''
+      }
       <button type="button" class="reset">元に戻す</button>
     </div>`;
   const gear = root.querySelector<HTMLButtonElement>('.gear')!;
@@ -86,6 +110,11 @@ export function buildSettingsPanel(initial: Settings, onChange: (s: Settings) =>
     save(s);
     onChange({ ...s });
   });
+  const select = root.querySelector<HTMLSelectElement>('select[data-quality]');
+  if (select && quality) {
+    select.value = quality.choice;
+    select.addEventListener('change', () => quality.onPick(select.value as QualityChoice));
+  }
   show();
   return root;
 }
