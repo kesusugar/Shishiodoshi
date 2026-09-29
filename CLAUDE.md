@@ -5,12 +5,13 @@
 ## 最初に読むもの
 - `docs/HANDOFF.md` — **いまの状態・ファイルの地図・確認のやり方・次にやること**（別の PC から引き継いだら最初にこれ）
 - `docs/PLAN.md` — 全体プラン。方針・物理モデル・水の描画・音・段階（P0〜P6）・決定事項はすべてここ
+- `docs/SEASONS.md` — **四季版（春・秋・冬を足す）のプラン**。参考は `docs/reference/ref4-four-seasons.webp`
 - `docs/reference/` — 参考画像（ref1: 配置、ref2: 苔・水・木漏れ日、**ref3: ユーザーが指定した理想の見た目**）
 
 ## 決定事項（詳細は PLAN.md 12〜14章）
 - PC ブラウザが主。スマホでも映像と音が出るようにする（音の開始処理は `src/audio/startGate.ts`。スマホ向けの画質調整はまだしない）
 - 音はすべて AudioWorklet で合成（録音素材は使わない）
-- 見た目はまず「夏」だけ。季節の値は `src/scene/seasons/` にまとめ、後で春・秋・冬を足せるようにする
+- 見た目は今は「夏」だけ。季節の値は `src/scene/seasons/` にまとめ、春・秋・冬は `docs/SEASONS.md` のプランで足していく（S0 下準備 → 秋 → 春 → 冬）
 - 公開は GitHub Pages（GitHub Actions、`main` へのマージで公開、Vite の `base` は `/Shishiodoshi/`）
 - 水面の波（iWave）・コースティクス・水の光の扱いは ScottieFox/caustic-volume（MIT）から移植する。移植したファイルには元の著作権表示を残し、`THIRD_PARTY_NOTICES.md` にライセンス全文を入れる
 
