@@ -23,6 +23,7 @@ export class FloatingLeaves {
   private readonly leaves: Leaf[] = [];
   private readonly rand = mulberry32(88);
   private time = 0;
+  private nextSlot = 0;
 
   constructor(private readonly water: WaterSurfaceRef, texture: THREE.Texture, colours: string[]) {
     const geo = leafGeometry(0.055, 8).rotateX(-Math.PI / 2); // fine enough to bend over the ripples
@@ -62,6 +63,27 @@ export class FloatingLeaves {
       this.leaves.push(leaf);
       this.group.add(mesh);
     }
+  }
+
+  /**
+   * A leaf that has just landed at (x, z) (world): it takes the place of the one that has been afloat
+   * longest and drifts from there on.
+   */
+  spawn(x: number, z: number, color: string): void {
+    const l = this.leaves[this.nextSlot];
+    this.nextSlot = (this.nextSlot + 1) % this.leaves.length;
+    if (!l) return;
+    l.x = x - this.water.center.x;
+    l.z = z - this.water.center.z;
+    l.vx = l.vz = 0;
+    l.spin = (this.rand() - 0.5) * 0.3;
+    (l.mesh.material as THREE.MeshStandardMaterial).color.set(color);
+    l.mesh.rotation.y = this.rand() * Math.PI * 2;
+  }
+
+  dispose(): void {
+    for (const l of this.leaves) (l.mesh.material as THREE.Material).dispose();
+    this.leaves[0]?.mesh.geometry.dispose();
   }
 
   /** Water plunging in at `at` (world) with a strength (roughly m/s of outward push at 5 cm). */

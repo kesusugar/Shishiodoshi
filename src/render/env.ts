@@ -11,7 +11,7 @@ import { chainCompile } from './shaderChain';
  * lighting is prefiltered from the same cube, so they all agree. Linear HDR radiance.
  */
 const ENV_PROCEDURAL_GLSL = /* glsl */ `
-uniform vec3 uSunDir, uLeafCol, uLeafLit, uShadeCol, uSkyCol;
+uniform vec3 uSunDir, uLeafCol, uLeafAlt, uLeafLit, uShadeCol, uSkyCol;
 
 float envHash(vec2 p) { p = fract(p * vec2(123.34, 456.21)); p += dot(p, p + 45.32); return fract(p.x * p.y); }
 float envNoise(vec2 p) {
@@ -44,7 +44,9 @@ vec3 envProcedural(vec3 d) {
   float leaves = smoothstep(0.3, 0.6, envFbm(p * 1.3) + 0.7 - 0.6 * smoothstep(0.45, 1.3, el));
   float sunward = pow(max(dot(d, uSunDir), 0.0), 2.0);
   float lit = envFbm(p * 2.1 + 5.0);
-  vec3 foliage = mix(uShadeCol, uLeafCol, smoothstep(0.3, 0.7, lit));
+  // patches of a second colour among the leaves (the same colour, in summer: no change)
+  float alt = smoothstep(0.45, 0.62, envFbm(p * 0.9 + 40.0));
+  vec3 foliage = mix(uShadeCol, mix(uLeafCol, uLeafAlt, alt), smoothstep(0.3, 0.7, lit));
   foliage = mix(foliage, uLeafLit, 0.6 * smoothstep(0.55, 0.85, lit) * (0.5 + sunward));
   // trunks: a few dark vertical bands
   float trunk = smoothstep(0.93, 0.97, envNoise(vec2(az * 9.0, 0.3))) * smoothstep(0.5, -0.1, el);
@@ -86,6 +88,7 @@ export function envUniforms(season: Season) {
     uSunDir: { value: sunDirection(season) },
     uSunCol: { value: linear(season.sun.color, season.sun.intensity) },
     uLeafCol: { value: linear(season.foliage.leaf, 0.6) },
+    uLeafAlt: { value: linear(season.foliage.alt ?? season.foliage.leaf, 0.6) },
     uLeafLit: { value: linear(season.foliage.leafLit, 1.1) },
     uShadeCol: { value: linear(season.foliage.shade, 0.5) },
     uSkyCol: { value: linear(season.sky.top, 1.2) },
@@ -100,6 +103,7 @@ export function updateEnvUniforms(u: EnvUniforms, season: Season): void {
   u.uSunDir.value.copy(fresh.uSunDir.value);
   u.uSunCol.value.copy(fresh.uSunCol.value);
   u.uLeafCol.value.copy(fresh.uLeafCol.value);
+  u.uLeafAlt.value.copy(fresh.uLeafAlt.value);
   u.uLeafLit.value.copy(fresh.uLeafLit.value);
   u.uShadeCol.value.copy(fresh.uShadeCol.value);
   u.uSkyCol.value.copy(fresh.uSkyCol.value);

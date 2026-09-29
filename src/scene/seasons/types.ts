@@ -10,6 +10,40 @@ export interface CanopyStyle {
   size: [number, number];
 }
 
+/** Things falling through the air (render/falling.ts). */
+export interface FallingStyle {
+  kind: 'leaf' | 'petal' | 'snow';
+  /** How many are in the air at once around the scene (a phone gets a third of this). */
+  count: number;
+  /** Each piece takes one of these colours. */
+  colors: string[];
+  /** Size in metres (smallest, largest) and fall speed in m/s (slowest, fastest). */
+  size: [number, number];
+  speed: [number, number];
+  /** How far it sways from side to side (m), and how quickly it tumbles (rad/s). */
+  sway: number;
+  spin: number;
+  /** Now and then one falls into the basin and stays afloat (leaves and petals; not snow). */
+  landsInBasin: boolean;
+}
+
+/** The garden around the shishi-odoshi (scene/garden.ts). */
+export interface GardenStyle {
+  /**
+   * Colours of the foreground maple's leaves, chosen per leaf by weight; `null` = greens taken from
+   * the season's foliage colours (summer).
+   */
+  branchLeaves: { color: string; weight: number }[] | null;
+  /** Fern colour. */
+  ferns: string;
+  /** How big the fern clumps are (1 = summer's). */
+  fernScale: number;
+  /** Fallen leaves on the ground: their colours, how dark (1 = as is), and how many. */
+  litter: { colors: string[]; tone: number; count: number; /** a leaf's size in metres */ size: number };
+  /** Leaves afloat on the basin: one entry per leaf. */
+  floaters: string[];
+}
+
 /** Everything that changes between seasons lives here (docs/SEASONS.md). */
 export interface Season {
   name: SeasonName;
@@ -28,7 +62,9 @@ export interface Season {
   ambient: { envIntensity: number; fill: number; /** the fill light's sky and ground colours */ sky: string; ground: string };
   canopy: CanopyStyle;
   /** The out-of-focus garden around the scene (see render/env.ts). */
-  foliage: { leaf: string; leafLit: string; shade: string; moss: string };
+  foliage: { leaf: string; leafLit: string; shade: string; moss: string; /** a second colour among the leaves (autumn's crimson among the orange); default = leaf */ alt?: string };
+  /** Tone-mapping exposure (brightness of the whole picture). */
+  exposure: number;
   bamboo: {
     /** 0 = fresh green bamboo, 1 = weathered ochre (ref1). */
     age: number;
@@ -37,6 +73,7 @@ export interface Season {
   };
   /** Mean wind strength 0..1; drives leaf motion, ripples and the wind sound together. */
   wind: number;
-  /** Things falling from the sky (petals, leaves, snow). Empty in summer. */
-  falling: null;
+  garden: GardenStyle;
+  /** Things falling from the sky (petals, leaves, snow); none in summer. */
+  falling: FallingStyle | null;
 }

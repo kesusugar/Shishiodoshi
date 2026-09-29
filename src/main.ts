@@ -13,7 +13,8 @@ import { SimView } from './render/simView';
 import { waterBeads } from './render/water/beads';
 import { Overflow } from './render/water/overflow';
 import { FloatingLeaves } from './render/water/floatingLeaves';
-import { buildGarden, FALLEN_COLOURS } from './scene/garden';
+import { Falling, HeroFall } from './render/falling';
+import { buildGarden } from './scene/garden';
 import { buildShishiodoshi } from './scene/shishiodoshi';
 import { pickSeason, rememberSeason, seasons, type Season, type SeasonName } from './scene/seasons';
 import { disposeTree } from './scene/dispose';
@@ -59,7 +60,7 @@ try {
 renderer.setPixelRatio(Math.min(window.devicePixelRatio, quality.maxPixelRatio));
 renderer.outputColorSpace = THREE.SRGBColorSpace;
 renderer.toneMapping = THREE.AgXToneMapping;
-renderer.toneMappingExposure = 1.2; // ref3 is a bright summer photo: mid-tones up, the sun's highlights still held by AgX
+renderer.toneMappingExposure = pickSeason(params).exposure; // summer 1.2: ref3 is a bright photo, mid-tones up, the sun's highlights still held by AgX
 renderer.shadowMap.enabled = !off.has('shadow');
 renderer.shadowMap.type = quality.softShadows ? THREE.PCFSoftShadowMap : THREE.PCFShadowMap;
 
@@ -106,13 +107,43 @@ const tipButton = document.querySelector<HTMLButtonElement>('#tip')!;
 tipButton.addEventListener('click', () => sim.topUp());
 if (capture) tipButton.hidden = true;
 if (!off.has('stream')) scene.add(simView.kakeiStream.mesh, simView.pour.mesh, simView.splash.mesh);
-// fallen leaves afloat on the basin, riding its ripples and pushed about by the water
-simView.floating = new FloatingLeaves(
-  { uSurf: water.surfaceUniform, center: world.basin.center, bowlRadius: world.basin.bowlRadius, level: world.basin.waterLevel },
-  garden.leafTexture,
-  [FALLEN_COLOURS[0], FALLEN_COLOURS[1], FALLEN_COLOURS[2]],
-);
-if (!off.has('garden')) scene.add(simView.floating.group);
+// Everything the season puts in the air and on the water: leaves afloat on the basin (riding its
+// ripples and pushed about by the water), and leaves / petals / snow falling. Rebuilt on a change.
+const waterRef = { uSurf: water.surfaceUniform, center: world.basin.center, bowlRadius: world.basin.bowlRadius, level: world.basin.waterLevel };
+let falling: Falling | null = null;
+let hero: HeroFall | null = null;
+function buildSeasonLife(): void {
+  if (simView.floating) {
+    scene.remove(simView.floating.group);
+    simView.floating.dispose();
+  }
+  simView.floating = new FloatingLeaves(waterRef, garden.leafTexture, season.garden.floaters);
+  if (!off.has('garden')) scene.add(simView.floating.group);
+  if (falling) {
+    scene.remove(falling.mesh);
+    falling.dispose();
+    falling = null;
+  }
+  if (hero) {
+    scene.remove(hero.group);
+    hero.dispose();
+    hero = null;
+  }
+  const style = season.falling;
+  if (style && !off.has('falling')) {
+    falling = new Falling(style, stage.env, style.kind === 'leaf' ? garden.leafTexture : null, quality.name === 'low' ? 0.4 : 1);
+    scene.add(falling.mesh);
+    if (style.landsInBasin) {
+      hero = new HeroFall(style, waterRef, (x, z, color) => {
+        // it touches down: a small ring, and it stays afloat
+        water.addDrop(new THREE.Vector3(x, waterRef.level, z), 0.01, -0.35);
+        simView.floating?.spawn(x, z, color);
+      });
+      scene.add(hero.group);
+    }
+  }
+}
+buildSeasonLife();
 // the basin brims over at a low point of its rim, toward the front right
 simView.overflow = new Overflow(stage.env, world.basinMesh, world.basin.center, world.basin.rimY, 1.0);
 if (!off.has('water')) scene.add(simView.overflow.mesh);
@@ -197,6 +228,8 @@ renderer.setAnimationLoop((timestamp) => {
   simView.update(stepper.alpha, dt);
   canopy.update(sim.state.time, season.wind);
   garden.update(sim.state.time, season.wind);
+  falling?.update(sim.state.time, season.wind);
+  hero?.update(dt);
   if (!off.has('water')) water.update(dt);
   controls.update();
   if (off.has('dof')) renderer.render(scene, camera);
@@ -245,12 +278,14 @@ async function changeSeason(name: SeasonName, instant = false): Promise<void> {
   season = next;
   setMossColor(next.foliage.moss);
   stage.setSeason(next);
+  renderer.toneMappingExposure = next.exposure;
   canopy.setStyle(next.canopy);
   waterSpec.wind = next.wind;
   scene.remove(garden.root);
   disposeTree(garden.root);
   garden = buildGarden(next, canopy.uniforms, gardenSpec);
   if (!off.has('garden')) scene.add(garden.root);
+  buildSeasonLife();
   probe.season = next.name;
   rememberSeason(next.name);
   seasonBar?.select(next.name);

@@ -124,14 +124,14 @@ export function buildGarden(season: Season, _canopy: Canopy['uniforms'], basin: 
     const count = clumps.length * 9;
     const mesh = new THREE.InstancedMesh(frond, mat, count);
     const m = new THREE.Matrix4(), q = new THREE.Quaternion(), e = new THREE.Euler(), p = new THREE.Vector3(), s = new THREE.Vector3();
-    const col = new THREE.Color(), leaf = new THREE.Color(season.foliage.leaf);
+    const col = new THREE.Color(), leaf = new THREE.Color(season.garden.ferns);
     let n = 0;
     for (const [cx, cz, size] of clumps) {
       for (let i = 0; i < 9; i++) {
         const yaw = (i / 9) * Math.PI * 2 + rand() * 0.6;
         p.set(cx + (rand() - 0.5) * 0.04, 0, cz + (rand() - 0.5) * 0.04);
         q.setFromEuler(e.set(0, yaw, 0.35 + rand() * 0.5, 'YXZ'));
-        const k = size * (0.7 + rand() * 0.5);
+        const k = size * (0.7 + rand() * 0.5) * season.garden.fernScale;
         s.set(k, k, k);
         mesh.setMatrixAt(n, m.compose(p, q, s));
         col.copy(leaf).multiplyScalar(0.8 + rand() * 0.6);
@@ -201,6 +201,7 @@ export function buildGarden(season: Season, _canopy: Canopy['uniforms'], basin: 
     const mesh = new THREE.InstancedMesh(leafGeometry(0.065), leafMat, count);
     const m = new THREE.Matrix4(), q = new THREE.Quaternion(), q2 = new THREE.Quaternion(), p = new THREE.Vector3(), s = new THREE.Vector3();
     const col = new THREE.Color(), leaf = new THREE.Color(season.foliage.leaf), lit = new THREE.Color(season.foliage.leafLit);
+    const palette = season.garden.branchLeaves, paletteTotal = palette?.reduce((t, c) => t + c.weight, 0) ?? 0;
     const up = new THREE.Vector3(0, 1, 0), out = new THREE.Vector3(), zAxis = new THREE.Vector3(0, 0, 1);
     const normal = new THREE.Vector3(), tipNow = new THREE.Vector3(), tipWant = new THREE.Vector3();
     for (let i = 0; i < count; i++) {
@@ -220,9 +221,22 @@ export function buildGarden(season: Season, _canopy: Canopy['uniforms'], basin: 
       q.premultiply(q2);
       s.setScalar(0.75 + rand() * 0.5);
       mesh.setMatrixAt(i, m.compose(p, q, s));
-      // deep greens, some paler where young; a few already turning
-      col.copy(leaf).lerp(lit, rand() * rand() * 0.6).multiplyScalar(0.55 + rand() * 0.55);
-      if (rand() < 0.03) col.set('#b8761c');
+      if (palette) {
+        // the season's own colours, picked by weight, each leaf a little lighter or darker
+        let pick = rand() * paletteTotal;
+        let chosen = palette[0].color;
+        for (const c of palette) {
+          if ((pick -= c.weight) <= 0) {
+            chosen = c.color;
+            break;
+          }
+        }
+        col.set(chosen).multiplyScalar(0.75 + rand() * 0.5);
+      } else {
+        // deep greens, some paler where young; a few already turning
+        col.copy(leaf).lerp(lit, rand() * rand() * 0.6).multiplyScalar(0.55 + rand() * 0.55);
+        if (rand() < 0.03) col.set('#b8761c');
+      }
       mesh.setColorAt(i, col);
     }
     // it takes the dappled shadow (so it is not evenly lit); casting its own would cost more than it shows
@@ -270,24 +284,32 @@ export function buildGarden(season: Season, _canopy: Canopy['uniforms'], basin: 
     root.add(lantern);
   }
 
-  // ---- fallen leaves on the gravel (those afloat on the basin are render/water/floatingLeaves.ts)
-  const fallenMat = new THREE.MeshStandardMaterial({ map: mapleTex, alphaTest: 0.5, side: THREE.DoubleSide, roughness: 0.6 });
-  const fallenColours = FALLEN_COLOURS;
-  const fallenGeo = leafGeometry(0.05).rotateX(-Math.PI / 2);
-  for (let i = 0; i < 9; i++) {
-    const m = new THREE.MeshStandardMaterial().copy(fallenMat);
-    m.color = new THREE.Color(fallenColours[Math.floor(rand() * fallenColours.length)]).multiplyScalar(0.8);
-    const leaf = new THREE.Mesh(fallenGeo, m);
-    let x = 0, z = 0;
-    for (let k = 0; k < 20; k++) {
-      x = -0.9 + rand() * 1.8;
-      z = -0.2 + rand() * 0.9;
-      if (free(x, z, 0.02)) break;
+  // ---- fallen leaves on the ground (those afloat on the basin are render/water/floatingLeaves.ts)
+  {
+    const { colors, tone, count, size: leafSize } = season.garden.litter;
+    if (count > 0) {
+      const fallenMat = new THREE.MeshStandardMaterial({ map: mapleTex, alphaTest: 0.5, side: THREE.DoubleSide, roughness: 0.6 });
+      const mesh = new THREE.InstancedMesh(leafGeometry(leafSize).rotateX(-Math.PI / 2), fallenMat, count);
+      const m = new THREE.Matrix4(), q = new THREE.Quaternion(), e = new THREE.Euler(), p = new THREE.Vector3(), sc = new THREE.Vector3(1, 1, 1);
+      const col = new THREE.Color();
+      for (let i = 0; i < count; i++) {
+        col.set(colors[Math.floor(rand() * colors.length)]).multiplyScalar(tone);
+        let x = 0, z = 0;
+        for (let k = 0; k < 20; k++) {
+          x = -0.9 + rand() * 1.8;
+          z = -0.2 + rand() * 0.9;
+          if (free(x, z, 0.02)) break;
+        }
+        // a heap of leaves lies a little above the last: each at its own height, tilted a little
+        const y = count > 20 ? 0.012 + (i % 5) * 0.003 : 0.012;
+        p.set(x, y, z);
+        q.setFromEuler(e.set((rand() - 0.5) * 0.4, rand() * 6.28, (rand() - 0.5) * 0.4));
+        mesh.setMatrixAt(i, m.compose(p, q, sc));
+        mesh.setColorAt(i, col);
+      }
+      mesh.receiveShadow = true;
+      root.add(mesh);
     }
-    leaf.position.set(x, 0.012, z);
-    leaf.rotation.set((rand() - 0.5) * 0.4, rand() * 6.28, (rand() - 0.5) * 0.4);
-    leaf.receiveShadow = true;
-    root.add(leaf);
   }
 
   return {

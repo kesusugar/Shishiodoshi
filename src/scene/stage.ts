@@ -9,7 +9,7 @@ import type { Season } from './seasons';
 export const cameraPresets = {
   main: { position: new THREE.Vector3(0.32, 0.72, 1.1), target: new THREE.Vector3(0.0, 0.5, -0.05), fov: 44 },
   // framed like docs/reference/ref4-four-seasons.webp: the tube from the striker stone to the mouth, the basin, the standing culm
-  seasons: { position: new THREE.Vector3(0.3, 0.66, 0.95), target: new THREE.Vector3(0.04, 0.46, 0.0), fov: 40 },
+  seasons: { position: new THREE.Vector3(-0.09, 0.8, 1.4), target: new THREE.Vector3(-0.09, 0.5, 0.0), fov: 40 },
   close: { position: new THREE.Vector3(0.34, 0.74, 0.7), target: new THREE.Vector3(0.07, 0.44, 0.0), fov: 42 },
   stream: { position: new THREE.Vector3(0.24, 0.82, 0.32), target: new THREE.Vector3(0.1, 0.79, 0.0), fov: 34 },
   overflow: { position: new THREE.Vector3(0.55, 0.36, 0.75), target: new THREE.Vector3(0.22, 0.17, 0.2), fov: 38 },

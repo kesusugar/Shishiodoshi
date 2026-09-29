@@ -7,7 +7,10 @@ import { mulberry32 } from './random';
  * same texture can be tinted green on the branch or red and gold where it has fallen. The blade is
  * a little paler at the base and deeper toward the tips, and faintly mottled.
  */
+const mapleCache = new Map<number, THREE.CanvasTexture>();
 export function mapleLeafTexture(seed = 5): THREE.CanvasTexture {
+  const hit = mapleCache.get(seed);
+  if (hit) return hit;
   const S = 512;
   const rand = mulberry32(seed);
   const c = document.createElement('canvas');
@@ -97,6 +100,7 @@ export function mapleLeafTexture(seed = 5): THREE.CanvasTexture {
   const t = new THREE.CanvasTexture(c);
   t.colorSpace = THREE.SRGBColorSpace;
   t.anisotropy = 4;
+  mapleCache.set(seed, t);
   return t;
 }
 
