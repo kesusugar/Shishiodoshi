@@ -20,6 +20,8 @@ import { buildStage, cameraPresets, type CameraPreset } from './scene/stage';
 import { FixedStepper } from './sim/fixedStep';
 import type { SimEvent } from './sim/events';
 import { ShishiodoshiSim } from './sim/shishiodoshi';
+import { defaultConfig } from './sim/config';
+import { buildSettingsPanel, defaultSettings, loadSettings, type Settings } from './ui/settings';
 
 // URL options: ?view=main|close|mouth|wide picks a camera preset; ?capture hides the UI and skips the
 // click-to-start screen (used by tools/ for screenshots and measurements); ?t=20 fast-forwards the
@@ -75,8 +77,11 @@ if (!off.has('garden')) scene.add(garden.root);
 const water = new BasinWater(renderer, { ...world.basin, wind: season.wind }, stage.env, canopy.uniforms);
 if (!off.has('water')) scene.add(water.mesh);
 
-// The simulation, and what it moves
-const sim = new ShishiodoshiSim();
+// Settings (flow and volumes; the tools always run with the defaults)
+const settings: Settings = capture ? { ...defaultSettings } : loadSettings();
+
+// The simulation (with its own copy of the inflow, which the settings change), and what it moves
+const sim = new ShishiodoshiSim({ ...defaultConfig, inflow: { ...defaultConfig.inflow, flow: settings.flow * 1e-6 } });
 const simView = new SimView(sim, world, water, stage.env, new THREE.Color('#d9c89a'));
 probe.inspect.sim = sim;
 probe.inspect.water = water;
@@ -218,8 +223,18 @@ renderer.setAnimationLoop((timestamp) => {
   });
 }
 
+const applySettings = (st: Settings) => {
+  sim.cfg.inflow.flow = st.flow * 1e-6;
+  simView.setInflow(sim.cfg.inflow.flow);
+  if (audio) audio.gains = { knock: st.knock, water: st.water, ambient: st.ambient };
+};
 if (!capture) {
+  document.body.append(buildSettingsPanel(settings, (st) => {
+    Object.assign(settings, st);
+    applySettings(settings);
+  }));
   void waitForStart(document.querySelector<HTMLElement>('#start')!).then(async (ctx) => {
     audio = await AudioEngine.create(ctx);
+    applySettings(settings);
   });
 }

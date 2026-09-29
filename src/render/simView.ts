@@ -52,6 +52,12 @@ export class SimView {
     this.prevAngle = sim.state.angle;
   }
 
+  /** The kakei's flow changed (settings): redraw its stream at the new thickness. */
+  setInflow(flow: number): void {
+    const { spout, velocity } = this.sim.cfg.inflow;
+    this.kakeiStream.set(new THREE.Vector3(spout.x, spout.y, 0), new THREE.Vector3(velocity.x, velocity.y, 0), flow, 0, 0);
+  }
+
   /** Call before each simulation step, so the drawn angle can be interpolated between steps. */
   beforeStep(): void {
     this.prevAngle = this.sim.state.angle;
