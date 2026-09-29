@@ -15,7 +15,10 @@ import { Overflow } from './render/water/overflow';
 import { FloatingLeaves } from './render/water/floatingLeaves';
 import { buildGarden, FALLEN_COLOURS } from './scene/garden';
 import { buildShishiodoshi } from './scene/shishiodoshi';
-import { defaultSeason } from './scene/seasons';
+import { pickSeason, rememberSeason, seasons, type Season, type SeasonName } from './scene/seasons';
+import { disposeTree } from './scene/dispose';
+import { setMossColor } from './scene/rockMaterial';
+import { buildSeasonBar } from './ui/seasonBar';
 import { buildStage, cameraPresets, type CameraPreset } from './scene/stage';
 import { FixedStepper } from './sim/fixedStep';
 import type { SimEvent } from './sim/events';
@@ -64,17 +67,20 @@ probe.gpu = gpuName(renderer.getContext() as WebGL2RenderingContext);
 const hud = new Hud(hudEl, `${probe.gpu}  [${quality.name}]`);
 if (capture) hudEl.hidden = true;
 
-const season = defaultSeason;
+let season: Season = pickSeason(params);
+probe.season = season.name;
 const scene = new THREE.Scene();
 const stage = buildStage(renderer, scene, season);
 stage.sun.shadow.mapSize.set(quality.shadowMapSize, quality.shadowMapSize);
-const canopy = new Canopy();
+const canopy = new Canopy(season.canopy);
 if (!off.has('canopy')) scene.add(canopy.mesh);
 const world = buildShishiodoshi(season, stage.env, canopy.uniforms);
 scene.add(world.root);
-const garden = buildGarden(season, canopy.uniforms, { center: world.basin.center, bowlRadius: world.basin.bowlRadius, level: world.basin.waterLevel });
+const gardenSpec = { center: world.basin.center, bowlRadius: world.basin.bowlRadius, level: world.basin.waterLevel };
+let garden = buildGarden(season, canopy.uniforms, gardenSpec);
 if (!off.has('garden')) scene.add(garden.root);
-const water = new BasinWater(renderer, { ...world.basin, wind: season.wind }, stage.env, canopy.uniforms);
+const waterSpec = { ...world.basin, wind: season.wind };
+const water = new BasinWater(renderer, waterSpec, stage.env, canopy.uniforms);
 if (!off.has('water')) scene.add(water.mesh);
 
 // Settings (flow and volumes; the tools always run with the defaults)
@@ -222,6 +228,41 @@ renderer.setAnimationLoop((timestamp) => {
     if (ray.ray.intersectPlane(plane, hit)) water.addDrop(hit, 0.01, 6);
   });
 }
+
+// Changing the season while running: fade to black, swap everything the season sets, fade back in
+// (the sound carries on). The fade hides the one-off cost of re-baking the surroundings.
+const fadeEl = document.querySelector<HTMLElement>('#fade')!;
+let switching = false;
+const wait = (ms: number) => new Promise((r) => setTimeout(r, ms));
+async function changeSeason(name: SeasonName, instant = false): Promise<void> {
+  const next = seasons[name];
+  if (!next || switching || next.name === season.name) return;
+  switching = true;
+  if (!instant) {
+    fadeEl.style.opacity = '1';
+    await wait(480);
+  }
+  season = next;
+  setMossColor(next.foliage.moss);
+  stage.setSeason(next);
+  canopy.setStyle(next.canopy);
+  waterSpec.wind = next.wind;
+  scene.remove(garden.root);
+  disposeTree(garden.root);
+  garden = buildGarden(next, canopy.uniforms, gardenSpec);
+  if (!off.has('garden')) scene.add(garden.root);
+  probe.season = next.name;
+  rememberSeason(next.name);
+  seasonBar?.select(next.name);
+  if (!instant) {
+    await new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r)));
+    fadeEl.style.opacity = '0';
+  }
+  switching = false;
+}
+probe.inspect.changeSeason = changeSeason;
+const seasonBar = capture ? null : buildSeasonBar(season.name, (n) => void changeSeason(n));
+if (seasonBar) document.body.append(seasonBar.el);
 
 const applySettings = (st: Settings) => {
   sim.cfg.inflow.flow = st.flow * 1e-6;

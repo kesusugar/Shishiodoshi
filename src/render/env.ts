@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import type { Season } from '../scene/seasons';
 import { CANOPY_GLSL, type Canopy } from './canopy';
+import { chainCompile } from './shaderChain';
 
 /**
  * The surroundings, seen out of focus as in ref2: a garden of sunlit greenery with bright bokeh where
@@ -68,25 +69,41 @@ uniform samplerCube uEnvCube;
 vec3 envColor(vec3 d) { return textureLod(uEnvCube, d, 0.0).rgb; }
 `;
 
-export function envUniforms(season: Season) {
+const linear = (hex: string, k = 1) => {
+  const c = new THREE.Color(hex);
+  return new THREE.Vector3(c.r * k, c.g * k, c.b * k);
+};
+
+/** The direction to the sun for a season (unit vector). */
+export function sunDirection(season: Season): THREE.Vector3 {
   const el = THREE.MathUtils.degToRad(season.sun.elevation);
   const az = THREE.MathUtils.degToRad(season.sun.azimuth);
-  const sunDir = new THREE.Vector3(Math.sin(az) * Math.cos(el), Math.sin(el), Math.cos(az) * Math.cos(el));
-  const lin = (hex: string, k = 1) => {
-    const c = new THREE.Color(hex);
-    return new THREE.Vector3(c.r * k, c.g * k, c.b * k);
-  };
+  return new THREE.Vector3(Math.sin(az) * Math.cos(el), Math.sin(el), Math.cos(az) * Math.cos(el));
+}
+
+export function envUniforms(season: Season) {
   return {
-    uSunDir: { value: sunDir },
-    uSunCol: { value: lin(season.sun.color, season.sun.intensity) },
-    uLeafCol: { value: lin(season.foliage.leaf, 0.6) },
-    uLeafLit: { value: lin(season.foliage.leafLit, 1.1) },
-    uShadeCol: { value: lin(season.foliage.shade, 0.5) },
-    uSkyCol: { value: lin(season.sky.top, 1.2) },
+    uSunDir: { value: sunDirection(season) },
+    uSunCol: { value: linear(season.sun.color, season.sun.intensity) },
+    uLeafCol: { value: linear(season.foliage.leaf, 0.6) },
+    uLeafLit: { value: linear(season.foliage.leafLit, 1.1) },
+    uShadeCol: { value: linear(season.foliage.shade, 0.5) },
+    uSkyCol: { value: linear(season.sky.top, 1.2) },
     uEnvCube: { value: null as THREE.CubeTexture | null },
   };
 }
 export type EnvUniforms = ReturnType<typeof envUniforms>;
+
+/** Change the season's colours and sun in place (the shaders hold these same objects). */
+export function updateEnvUniforms(u: EnvUniforms, season: Season): void {
+  const fresh = envUniforms(season);
+  u.uSunDir.value.copy(fresh.uSunDir.value);
+  u.uSunCol.value.copy(fresh.uSunCol.value);
+  u.uLeafCol.value.copy(fresh.uLeafCol.value);
+  u.uLeafLit.value.copy(fresh.uLeafLit.value);
+  u.uShadeCol.value.copy(fresh.uShadeCol.value);
+  u.uSkyCol.value.copy(fresh.uSkyCol.value);
+}
 
 /** The backdrop: a large sphere showing the surroundings, behind everything. */
 export function buildEnvDome(uniforms: EnvUniforms, procedural = false): THREE.Mesh {
@@ -121,7 +138,7 @@ export function buildEnvDome(uniforms: EnvUniforms, procedural = false): THREE.M
  * Draw the surroundings once into a cube texture (`uEnvCube`, for envColor), and prefilter it for
  * image-based lighting on the bamboo, wood and stone. Returns the prefiltered environment.
  */
-export function bakeEnvironment(renderer: THREE.WebGLRenderer, uniforms: EnvUniforms): THREE.Texture {
+export function bakeEnvironment(renderer: THREE.WebGLRenderer, uniforms: EnvUniforms): { texture: THREE.Texture; dispose(): void } {
   const scene = new THREE.Scene();
   const dome = buildEnvDome(uniforms, true);
   (dome.material as THREE.ShaderMaterial).toneMapped = false;
@@ -133,7 +150,16 @@ export function bakeEnvironment(renderer: THREE.WebGLRenderer, uniforms: EnvUnif
   const pmrem = new THREE.PMREMGenerator(renderer);
   const rt = pmrem.fromCubemap(cubeRT.texture);
   pmrem.dispose();
-  return rt.texture;
+  dome.geometry.dispose();
+  (dome.material as THREE.Material).dispose();
+  return {
+    texture: rt.texture,
+    // the cube stays in use by the shaders (uEnvCube) until the next bake replaces it
+    dispose: () => {
+      rt.dispose();
+      cubeRT.dispose();
+    },
+  };
 }
 
 /**
@@ -142,7 +168,7 @@ export function bakeEnvironment(renderer: THREE.WebGLRenderer, uniforms: EnvUnif
  * shadow map the leaves' dappling is taken straight from the canopy texture, so it carries on.
  */
 export function addGardenFog(mat: THREE.Material, uniforms: EnvUniforms, near: number, far: number, canopy: Canopy['uniforms']): void {
-  mat.onBeforeCompile = (sh) => {
+  chainCompile(mat, (sh) => {
     Object.assign(sh.uniforms, uniforms, canopy);
     sh.vertexShader = sh.vertexShader
       .replace('#include <common>', '#include <common>\nvarying vec3 vGardenPos;')
@@ -164,5 +190,5 @@ export function addGardenFog(mat: THREE.Material, uniforms: EnvUniforms, near: n
         gl_FragColor.rgb = mix(gl_FragColor.rgb, envColor(vGardenPos - cameraPosition), gardenK);
         #include <tonemapping_fragment>`,
       );
-  };
+  }, `gardenFog ${near} ${far}`);
 }

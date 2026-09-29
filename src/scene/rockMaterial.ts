@@ -1,5 +1,6 @@
 import * as THREE from 'three';
-import { andesite } from '../render/textures';
+import { chainCompile } from '../render/shaderChain';
+import { andesite, type SurfaceMaps } from '../render/textures';
 import type { Season } from './seasons';
 
 /**
@@ -8,12 +9,25 @@ import type { Season } from './seasons';
  * The bare stone is wet unevenly (glossy streaks and matt patches), pitted, and darker and soiled
  * where it goes into the ground, so it sits in the soil rather than on it.
  */
+/**
+ * The moss colour every stone shares (a uniform's value can be swapped while the page runs, so a
+ * change of season recolours all the stones at once).
+ */
+export const mossUniform = { value: new THREE.Color() };
+export function setMossColor(hex: string): void {
+  mossUniform.value.set(hex);
+}
+
+// the textures are the expensive part (noise over 512 x 512), so one set per seed is kept
+const stones = new Map<number, SurfaceMaps>();
+
 export function mossyRockMaterial(season: Season, seed: number): THREE.MeshStandardMaterial {
-  const stone = andesite(seed);
-  const mossCol = new THREE.Color(season.foliage.moss);
+  let stone = stones.get(seed);
+  if (!stone) stones.set(seed, (stone = andesite(seed)));
+  setMossColor(season.foliage.moss);
   const mat = new THREE.MeshStandardMaterial({ map: stone.color, bumpMap: stone.bump, bumpScale: 4, roughnessMap: stone.rough, roughness: 1 });
-  mat.onBeforeCompile = (sh) => {
-    sh.uniforms.uMoss = { value: mossCol };
+  chainCompile(mat, (sh) => {
+    sh.uniforms.uMoss = mossUniform;
     sh.vertexShader = sh.vertexShader
       .replace('#include <common>', '#include <common>\nvarying vec3 vUp;\nvarying vec3 vObjPos;\nvarying float vWorldY;')
       .replace('#include <begin_vertex>', '#include <begin_vertex>\nvUp = normalize(mat3(modelMatrix) * normal);\nvObjPos = position;\nvWorldY = (modelMatrix * vec4(position, 1.0)).y;');
@@ -47,6 +61,6 @@ export function mossyRockMaterial(season: Season, seed: number): THREE.MeshStand
         '#include <roughnessmap_fragment>',
         '#include <roughnessmap_fragment>\nroughnessFactor *= mix(1.1, 0.45, smoothstep(0.45, 0.75, wetStreak));\nroughnessFactor = mix(roughnessFactor, 1.0, max(mossK, sunk * 0.6));',
       );
-  };
+  });
   return mat;
 }

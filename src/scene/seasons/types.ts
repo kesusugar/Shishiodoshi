@@ -1,6 +1,20 @@
-/** Everything that changes between seasons lives here (PLAN.md 13章). Only summer is filled in for now. */
+export type SeasonName = 'spring' | 'summer' | 'autumn' | 'winter';
+
+/** The leaves overhead that dapple the light (render/canopy.ts). */
+export interface CanopyStyle {
+  kind: 'leaves' | 'blossom' | 'bare';
+  /** Clusters of foliage, and pieces (leaves / flowers / twigs) drawn across them. */
+  clusters: number;
+  pieces: number;
+  /** Length of a piece in texture pixels (smallest, largest). */
+  size: [number, number];
+}
+
+/** Everything that changes between seasons lives here (docs/SEASONS.md). */
 export interface Season {
-  name: string;
+  name: SeasonName;
+  /** The character on the season button. */
+  label: string;
   sky: { top: string };
   sun: {
     color: string;
@@ -11,7 +25,8 @@ export interface Season {
     azimuth: number;
   };
   /** Image-based light from the surroundings, and a little extra fill. */
-  ambient: { envIntensity: number; fill: number };
+  ambient: { envIntensity: number; fill: number; /** the fill light's sky and ground colours */ sky: string; ground: string };
+  canopy: CanopyStyle;
   /** The out-of-focus garden around the scene (see render/env.ts). */
   foliage: { leaf: string; leafLit: string; shade: string; moss: string };
   bamboo: {

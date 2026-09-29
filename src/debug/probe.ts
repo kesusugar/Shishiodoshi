@@ -9,6 +9,8 @@ export interface Probe {
   gpu: string;
   /** The quality preset in use (render/quality.ts). */
   quality: string;
+  /** The season shown now (scene/seasons). */
+  season: string;
   fps: number;
   error: string | null;
   /** With ?at=T: the simulation has reached T and everything is held still. */
@@ -23,5 +25,5 @@ declare global {
   }
 }
 
-export const probe: Probe = { ready: false, frames: 0, simTime: 0, gpu: '', quality: '', fps: 0, error: null, frozen: false, inspect: {} };
+export const probe: Probe = { ready: false, frames: 0, simTime: 0, gpu: '', quality: '', season: '', fps: 0, error: null, frozen: false, inspect: {} };
 window.__shishi = probe;

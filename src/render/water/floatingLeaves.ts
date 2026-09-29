@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import { mulberry32 } from '../../scene/random';
 import { leafGeometry } from '../../scene/leaves';
+import { chainCompile } from '../shaderChain';
 
 /**
  * Fallen maple leaves afloat on the basin. Each vertex of a leaf rides on the water's surface as the
@@ -28,7 +29,7 @@ export class FloatingLeaves {
     const R = water.bowlRadius;
     for (let i = 0; i < colours.length; i++) {
       const mat = new THREE.MeshStandardMaterial({ map: texture, color: colours[i], alphaTest: 0.5, side: THREE.DoubleSide, roughness: 0.35 });
-      mat.onBeforeCompile = (sh) => {
+      chainCompile(mat, (sh) => {
         sh.uniforms.uSurf = water.uSurf;
         sh.vertexShader = sh.vertexShader
           .replace('#include <common>', `#include <common>
@@ -51,7 +52,7 @@ export class FloatingLeaves {
               objectNormal = normalize(objectNormal + vec3(-sl.y, 0.0, -sl.z) * 3.0);
             }`,
           );
-      };
+      }, `floatingLeaf ${water.center.x} ${water.center.z} ${R}`);
       const mesh = new THREE.Mesh(geo, mat);
       mesh.receiveShadow = true;
       mesh.renderOrder = 2;

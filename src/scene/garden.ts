@@ -4,6 +4,7 @@ import { mulberry32 } from './random';
 import type { Season } from './seasons';
 import { leafGeometry, mapleLeafTexture } from './leaves';
 import { mossyRockMaterial } from './rockMaterial';
+import { chainCompile } from '../render/shaderChain';
 import { rockGeometry } from './shishiodoshi';
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 
@@ -348,7 +349,7 @@ function fernFrond(rand: () => number): THREE.BufferGeometry {
  * shadow (a leaf in the shade of another does not glow).
  */
 function translucentLeaves(mat: THREE.MeshStandardMaterial, tint: THREE.Color): void {
-  mat.onBeforeCompile = (sh) => {
+  chainCompile(mat, (sh) => {
     sh.uniforms.uLeafTint = { value: tint };
     sh.fragmentShader = sh.fragmentShader
       .replace('#include <common>', '#include <common>\nuniform vec3 uLeafTint;')
@@ -360,7 +361,7 @@ function translucentLeaves(mat: THREE.MeshStandardMaterial, tint: THREE.Color): 
             'reflectedLight.directDiffuse += uLeafTint * material.diffuseColor * directLight.color * max( 0.0, -dot( geometryNormal, directLight.direction ) ) * 0.9;',
         ),
       );
-  };
+  });
 }
 
 /**

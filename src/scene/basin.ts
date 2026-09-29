@@ -1,6 +1,8 @@
 import * as THREE from 'three';
 import { Noise2 } from '../render/noise';
+import { chainCompile } from '../render/shaderChain';
 import { andesite } from '../render/textures';
+import { mossUniform, setMossColor } from './rockMaterial';
 import type { Season } from './seasons';
 
 /**
@@ -103,10 +105,10 @@ export function buildBasin(season: Season): THREE.Mesh {
     roughnessMap: stone.rough,
     roughness: 1,
   });
-  const mossCol = new THREE.Color(season.foliage.moss);
-  mat.onBeforeCompile = (sh) => {
+  setMossColor(season.foliage.moss);
+  chainCompile(mat, (sh) => {
     sh.uniforms.uMossMap = { value: mossMaps };
-    sh.uniforms.uMossCol = { value: mossCol };
+    sh.uniforms.uMossCol = mossUniform;
     sh.vertexShader = sh.vertexShader
       .replace('#include <common>', '#include <common>\nattribute float aMoss;\nvarying float vMoss;\nvarying vec3 vBasinPos;')
       .replace('#include <begin_vertex>', '#include <begin_vertex>\nvMoss = aMoss;\nvBasinPos = position;');
@@ -134,7 +136,7 @@ export function buildBasin(season: Season): THREE.Mesh {
         '#include <normal_fragment_maps>',
         '#include <normal_fragment_maps>\nnormal = normalize(mix(normal, normalize(normal + (vec3(mossF.g, mossF.r, mossT.g) - 0.5) * 0.9), mossK));',
       );
-  };
+  });
   const mesh = new THREE.Mesh(g, mat);
   mesh.castShadow = true;
   mesh.receiveShadow = true;
