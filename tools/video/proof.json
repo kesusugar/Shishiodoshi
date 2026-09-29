@@ -1,0 +1,7 @@
+{
+  "output": "proof", "width": 1280, "height": 720, "fps": 30, "crossfade": 0.5,
+  "segments": [
+    { "clip": "hit-real", "soundRate": 1, "caption": { "text": "ししおどし", "style": "title", "from": 0.4, "to": 2.6 } },
+    { "clip": "hit-slow", "soundRate": 0.2, "caption": { "text": "竹が石を打つ、その一瞬。", "style": "note", "from": 0.6, "to": 3.6 } }
+  ]
+}

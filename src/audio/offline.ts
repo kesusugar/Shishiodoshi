@@ -1,3 +1,4 @@
+import { defaultConfig } from '../sim/config';
 import { SIM_DT } from '../sim/fixedStep';
 import { ShishiodoshiSim } from '../sim/shishiodoshi';
 import type { SimEvent } from '../sim/events';
@@ -14,8 +15,10 @@ export async function renderOffline(
   start = 0,
   sampleRate = 48000,
   season?: { name: 'spring' | 'summer' | 'autumn' | 'winter'; wind: number },
+  /** the kakei's flow (mL/s), if not the default */
+  flowMl?: number,
 ): Promise<ArrayBuffer> {
-  const sim = new ShishiodoshiSim();
+  const sim = new ShishiodoshiSim(flowMl ? { ...defaultConfig, inflow: { ...defaultConfig.inflow, flow: flowMl * 1e-6 } } : undefined);
   for (let t = 0; t < start; t += SIM_DT) sim.step(SIM_DT);
   sim.drainEvents();
   const ctx = new OfflineAudioContext(2, Math.ceil(seconds * sampleRate), sampleRate);

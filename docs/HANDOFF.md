@@ -89,6 +89,14 @@ node tools/audio.mjs --seconds=6 --start=24        # 音を WAV とスペクト�
 - 冬の筒の雪: 筒だけ雪の量を別に持ち（`tubeSnow`）、倒れて横木に当たった瞬間に落ち、雪の塊が飛ぶ（`render/snowSlide.ts`）。あとでゆっくり積もり直す
 - 画質: 自動／高／中／低を設定パネルで選べる（変えると読み込み直す）。`render/quality.ts`。iPhone 16 の実測: `low` で 44fps（解像度 100%）だったので、影の更新の間引き（`shadowEvery`）、ポストのエッジ平滑化（`post.ts` の `smoothEdges`）、目標 fps の見直しを入れた。**この変更後の fps はまだ実機で測れていない**
 
+## 動画づくり（X などに載せる宣伝動画）
+
+- クラウドには GPU がなく実時間で録画できないので、**アプリを 1 コマずつ進めて描く**。`?capture&manual` で起動すると自動では動かず、`tools/record.mjs` が「1 コマ進める→画像を取り出す」を繰り返す。カメラ・季節・水の量（`?flow=`）も外から指定できる
+- `node tools/record.mjs tools/video/<クリップ>.json` → `tools/out/video/<name>/frame-*.jpg` と、同じ瞬間の音 `<name>.wav`（合成音を OfflineAudioContext で書き出す。衝突の音はコマと 1 コマ以内で合う）
+- `node tools/compose-video.mjs tools/video/<映画>.json` → 複数クリップを連結（クロスフェード）、文字を重ね、スローモーション用に音を遅くして、H.264 + AAC の mp4 にする。ffmpeg は `pip install imageio-ffmpeg`（`FFMPEG=` でも指定できる）
+- 速さの目安: 1 コマ約 2〜3 秒（720p）。30 fps・30 秒の動画で約 40〜50 分。1080p はさらに約 1.5 倍
+- 同じ瞬間（`start`）から始めれば、4 季節で「竹が石を打つ」タイミングがそろう（物理は季節で変わらない）。デフォルトの水の量なら、最初の一打は 26.746 秒
+
 ## 環境の注意
 
 - **スマホの音**: iPhone は Web Audio を消音スイッチで消される種類の音として扱うので、開始のタップで「再生」扱いに切り替えている（Audio Session API、古い iOS は無音の <audio> をループ）。電話やアプリ切り替えで止まった音は、次のタップか画面に戻ったときに再開する（`src/audio/startGate.ts`）
