@@ -55,6 +55,7 @@ export class Post {
         uMaxBlur: { value: this.maxBlur },
         uAspect: { value: 1 },
         uPixel: { value: 1 / 900 },
+        uTexel: { value: new THREE.Vector2(1 / 1600, 1 / 900) },
       },
       vertexShader: /* glsl */ `
         varying vec2 vUv;
@@ -67,12 +68,28 @@ export class Post {
         float viewZ(vec2 uv) { return -perspectiveDepthToViewZ(texture2D(tDepth, uv).x, uNear, uFar); }
         float coc(float z) { return min(uAperture * abs(1.0 / uFocus - 1.0 / z), uMaxBlur); }
         uniform float uPixel;   // one pixel, as a fraction of the screen height
+        uniform vec2 uTexel;    // one texel of the colour target, in uv
+        // The scene is drawn without multisampling (it stalled the GPU), so its edges are stair-steps
+        // (plain to see on a phone at a low resolution). Where a pixel differs much from its four
+        // neighbours (an edge), blend it toward them. Judged on tone-mapped-ish luminance.
+        float lum(vec3 c) { float l = dot(c, vec3(0.299, 0.587, 0.114)); return l / (1.0 + l); }
+        vec3 smoothEdges(vec2 uv) {
+          vec3 c = texture2D(tColor, uv).rgb;
+          vec3 n = texture2D(tColor, uv + vec2(0.0, uTexel.y)).rgb;
+          vec3 s = texture2D(tColor, uv - vec2(0.0, uTexel.y)).rgb;
+          vec3 e = texture2D(tColor, uv + vec2(uTexel.x, 0.0)).rgb;
+          vec3 w = texture2D(tColor, uv - vec2(uTexel.x, 0.0)).rgb;
+          float lc = lum(c), ln = lum(n), ls = lum(s), le = lum(e), lw = lum(w);
+          float hi = max(lc, max(max(ln, ls), max(le, lw))), lo = min(lc, min(min(ln, ls), min(le, lw)));
+          float edge = smoothstep(0.06, 0.25, hi - lo);
+          return mix(c, (n + s + e + w) * 0.25, edge * 0.55);
+        }
         void main() {
           float z0 = viewZ(vUv), c0 = coc(z0);
-          vec3 sum = texture2D(tColor, vUv).rgb;
-          float wsum = 1.0;
           // in focus: nothing to gather. Otherwise as many taps as the blur circle needs (by its area).
           float px = c0 / uPixel;
+          vec3 sum = px < 0.75 ? smoothEdges(vUv) : texture2D(tColor, vUv).rgb;
+          float wsum = 1.0;
           int n = px < 0.75 ? 1 : int(clamp(px * px * 0.5, 8.0, ${TAPS}.0));
           for (int i = 1; i < ${TAPS}; i++) {
             if (i >= n) break;
@@ -121,6 +138,7 @@ export class Post {
     this.rt = this.makeTarget(w, h);
     this.mat.uniforms.uAspect.value = this.cssW / this.cssH;
     this.mat.uniforms.uPixel.value = 1 / h;
+    this.mat.uniforms.uTexel.value.set(1 / w, 1 / h);
   }
 
   /**

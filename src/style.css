@@ -144,6 +144,21 @@ body {
   align-self: flex-start;
 }
 
+#settings select {
+  min-height: 32px;
+  padding: 4px 6px;
+  border: 1px solid rgb(255 255 255 / 0.35);
+  border-radius: 4px;
+  background: rgb(0 0 0 / 0.55);
+  color: #e8ecdf;
+  font: inherit;
+}
+
+#settings .hint {
+  opacity: 0.6;
+  font-size: 11px;
+}
+
 #seasons {
   position: fixed;
   top: 8px;
@@ -163,6 +178,10 @@ body {
   color: #e8ecdf;
   font: 16px system-ui, 'Segoe UI', 'Yu Gothic UI', sans-serif;
   cursor: pointer;
+}
+
+#seasons .round {
+  margin-left: 6px;
 }
 
 #seasons button[aria-pressed='true'] {

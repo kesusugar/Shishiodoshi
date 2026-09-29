@@ -16,7 +16,7 @@ export const autumn: Season = {
   ambient: { envIntensity: 0.8, fill: 0.2, sky: '#ffe0b4', ground: '#6a4630' },
   // the leaves have thinned: more gaps for the low sun
   canopy: { kind: 'leaves', clusters: 60, pieces: 1800, size: [9, 20] },
-  foliage: { leaf: '#e0561c', leafLit: '#ffc23c', shade: '#6a2c10', moss: '#6a8a2a', alt: '#b8261a' },
+  foliage: { leaf: '#e0561c', leafLit: '#ffc23c', shade: '#6a2c10', moss: '#6a8a2a', alt: '#c02a1a', gain: 1.5 },
   snow: 0,
   exposure: 1.35,
   bamboo: { age: 0.9, fresh: '#8fa546', aged: '#caa565' },

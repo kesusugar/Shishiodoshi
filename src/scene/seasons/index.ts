@@ -28,6 +28,23 @@ export function pickSeason(params: URLSearchParams): Season {
   return defaultSeason;
 }
 
+const ROUND_KEY = 'shishiodoshi.round';
+/** Whether the seasons were coming round by themselves last time. */
+export function savedRound(): boolean {
+  try {
+    return localStorage.getItem(ROUND_KEY) === '1';
+  } catch {
+    return false;
+  }
+}
+export function saveRound(on: boolean): void {
+  try {
+    localStorage.setItem(ROUND_KEY, on ? '1' : '0');
+  } catch {
+    // private mode: for this visit only
+  }
+}
+
 export function rememberSeason(name: SeasonName): void {
   try {
     localStorage.setItem(KEY, name);

@@ -20,6 +20,8 @@ export interface CulmSpec {
   fresh: string;
   aged: string;
   seed: number;
+  /** Snow amount for this culm alone (default: the scene's) */
+  snow?: { value: number };
 }
 
 const SEG_AROUND = 64;
@@ -65,7 +67,7 @@ export function buildCulm(spec: CulmSpec): THREE.Group {
     sheenRoughness: 0.6,
     sheenColor: new THREE.Color('#fff4d8'),
   });
-  snowify(skinMat, 0.011);
+  snowify(skinMat, 0.011, 0, spec.snow);
   const fleshMat = new THREE.MeshStandardMaterial({
     map: flesh.color,
     bumpMap: flesh.bump,

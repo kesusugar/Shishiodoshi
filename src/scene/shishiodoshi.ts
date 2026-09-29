@@ -1,7 +1,7 @@
 import * as THREE from 'three';
 import type { Canopy } from '../render/canopy';
 import { addGardenFog, type EnvUniforms } from '../render/env';
-import { snowify } from '../render/snow';
+import { snowify, tubeSnow } from '../render/snow';
 import { mossyGround, weatheredWood } from '../render/textures';
 import { defaultConfig, kakei as kakeiCfg, type SimConfig } from '../sim/config';
 import { basinSpec, buildBasin } from './basin';
@@ -47,8 +47,8 @@ export function buildShishiodoshi(season: Season, env: EnvUniforms, canopy: Cano
   const groundMaps = mossyGround(21);
   const groundMat = new THREE.MeshStandardMaterial({ map: groundMaps.color, bumpMap: groundMaps.bump, bumpScale: 3, roughness: 1 });
   addGardenFog(groundMat, env, 1.6, 5.0, canopy);
-  snowify(groundMat, 0.012);
-  const ground = new THREE.Mesh(new THREE.CircleGeometry(12, 96), groundMat);
+  snowify(groundMat, 0.012, 0.03); // (a plane cut fine enough for the snow to lie in drifts)
+  const ground = new THREE.Mesh(new THREE.PlaneGeometry(24, 24, 200, 200), groundMat);
   ground.geometry.rotateX(-Math.PI / 2);
   const guv = ground.geometry.getAttribute('uv') as THREE.BufferAttribute;
   for (let i = 0; i < guv.count; i++) guv.setXY(i, guv.getX(i) * 36, guv.getY(i) * 36);
@@ -74,6 +74,7 @@ export function buildShishiodoshi(season: Season, env: EnvUniforms, canopy: Cano
     fresh: bamboo.fresh,
     aged: bamboo.aged,
     seed: 101,
+    snow: tubeSnow,
   };
   const tube = new THREE.Group();
   tube.position.copy(layout.pivot);
