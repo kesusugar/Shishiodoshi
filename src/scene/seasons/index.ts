@@ -1,6 +1,7 @@
 import { autumn } from './autumn';
 import { spring } from './spring';
 import { summer } from './summer';
+import { winter } from './winter';
 import type { Season, SeasonName } from './types';
 
 export type { Season, SeasonName };
@@ -8,7 +9,7 @@ export type { CanopyStyle, FallingStyle, GardenStyle } from './types';
 
 /** The seasons that exist so far, in the order of the buttons (spring, summer, autumn, winter). */
 const ORDER: SeasonName[] = ['spring', 'summer', 'autumn', 'winter'];
-export const seasons: Partial<Record<SeasonName, Season>> = { spring, summer, autumn };
+export const seasons: Partial<Record<SeasonName, Season>> = { spring, summer, autumn, winter };
 export const seasonNames = (): SeasonName[] => ORDER.filter((n) => seasons[n]);
 export const defaultSeason: Season = summer;
 

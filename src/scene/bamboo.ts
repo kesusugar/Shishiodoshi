@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { snowify } from '../render/snow';
 import { bambooFlesh, bambooSkin } from '../render/textures';
 
 /**
@@ -64,6 +65,7 @@ export function buildCulm(spec: CulmSpec): THREE.Group {
     sheenRoughness: 0.6,
     sheenColor: new THREE.Color('#fff4d8'),
   });
+  snowify(skinMat, 0.011);
   const fleshMat = new THREE.MeshStandardMaterial({
     map: flesh.color,
     bumpMap: flesh.bump,

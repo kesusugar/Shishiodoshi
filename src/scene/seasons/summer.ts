@@ -11,6 +11,7 @@ export const summer: Season = {
   canopy: { kind: 'leaves', clusters: 70, pieces: 3200, size: [9, 21] },
   foliage: { leaf: '#3f6a2a', leafLit: '#c9dc8a', shade: '#16220f', moss: '#5a7a1e' },
   bamboo: { age: 0.9, fresh: '#8fa546', aged: '#caa565' },
+  snow: 0,
   exposure: 1.2,
   wind: 0.25,
   garden: {
@@ -20,6 +21,7 @@ export const summer: Season = {
     fernScale: 1,
     litter: { colors: ['#c8321c', '#d98b1c', '#b52a18', '#8a6a1a'], tone: 0.8, count: 9, size: 0.05, shape: 'leaf' },
     floaters: ['#c8321c', '#d98b1c', '#b52a18'],
+    shrubs: 0,
     floaterKind: 'leaf',
   },
   falling: null,

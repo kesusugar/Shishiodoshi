@@ -45,6 +45,8 @@ export interface GardenStyle {
   /** Leaves (or petals) afloat on the basin: one entry per piece. */
   floaters: string[];
   floaterKind: 'leaf' | 'petal';
+  /** Snow-laden shrubs standing behind the boulders (winter). */
+  shrubs: number;
 }
 
 /** Everything that changes between seasons lives here (docs/SEASONS.md). */
@@ -68,6 +70,8 @@ export interface Season {
   foliage: { leaf: string; leafLit: string; shade: string; moss: string; /** a second colour among the leaves (autumn's crimson among the orange); default = leaf */ alt?: string };
   /** Tone-mapping exposure (brightness of the whole picture). */
   exposure: number;
+  /** How much snow lies on everything (0 = none, 1 = winter); see render/snow.ts. */
+  snow: number;
   bamboo: {
     /** 0 = fresh green bamboo, 1 = weathered ochre (ref1). */
     age: number;

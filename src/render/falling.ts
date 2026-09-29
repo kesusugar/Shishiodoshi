@@ -77,7 +77,8 @@ export class Falling {
           // the ground, or the rim of the basin: a piece is gone once it reaches it (it shrinks away)
           float floorY = length(c.xz - vec2(${BASIN.x.toFixed(2)}, 0.0)) < ${BASIN.radius.toFixed(2)} ? ${BASIN.rim.toFixed(3)} : 0.012;
           float life = smoothstep(floorY, floorY + 0.05, y) * smoothstep(0.0, 0.2, top - y);
-          float size = mix(uSize.x, uSize.y, fract(r1 * 13.7)) * life;
+          float sz = fract(r1 * 13.7);
+          float size = mix(uSize.x, uSize.y, uKind > 0.5 ? sz * sz * sz : sz) * life;
           vec3 local, n;
           if (uKind < 0.5) {
             // a leaf or petal tumbling as it falls

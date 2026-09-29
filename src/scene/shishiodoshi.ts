@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import type { Canopy } from '../render/canopy';
 import { addGardenFog, type EnvUniforms } from '../render/env';
+import { snowify } from '../render/snow';
 import { mossyGround, weatheredWood } from '../render/textures';
 import { defaultConfig, kakei as kakeiCfg, type SimConfig } from '../sim/config';
 import { basinSpec, buildBasin } from './basin';
@@ -46,6 +47,7 @@ export function buildShishiodoshi(season: Season, env: EnvUniforms, canopy: Cano
   const groundMaps = mossyGround(21);
   const groundMat = new THREE.MeshStandardMaterial({ map: groundMaps.color, bumpMap: groundMaps.bump, bumpScale: 3, roughness: 1 });
   addGardenFog(groundMat, env, 1.6, 5.0, canopy);
+  snowify(groundMat, 0.012);
   const ground = new THREE.Mesh(new THREE.CircleGeometry(12, 96), groundMat);
   ground.geometry.rotateX(-Math.PI / 2);
   const guv = ground.geometry.getAttribute('uv') as THREE.BufferAttribute;
@@ -92,6 +94,7 @@ export function buildShishiodoshi(season: Season, env: EnvUniforms, canopy: Cano
     post.castShadow = post.receiveShadow = true;
     root.add(post);
   }
+  snowify(wood, 0.008);
   const axle = new THREE.Mesh(new THREE.CylinderGeometry(0.0075, 0.0075, 0.17, 16), wood);
   axle.rotation.x = Math.PI / 2;
   axle.position.copy(layout.pivot);
@@ -225,6 +228,7 @@ export function rockGeometry(rand: () => number, rx: number, height: number, rz:
     pos.setXYZ(i, v.x * rx * widen, ((y + 0.55) / 1.45) * height, v.z * rz * widen);
   }
   g.computeVertexNormals();
+  smoothNormals(g);
   return g;
 }
 
@@ -233,4 +237,30 @@ export function boreFloorY(scene: ShishiodoshiScene, x: number): number {
   const th = scene.tube.rotation.z, p = scene.tube.position, rIn = scene.tubeSpec.radius - scene.tubeSpec.wall;
   const xl = (x - p.x - rIn * Math.sin(th)) / Math.cos(th);
   return p.y + xl * Math.sin(th) - rIn * Math.cos(th);
+}
+
+/**
+ * The icosphere is not indexed, so its normals come out flat (one per face) and a stone looks cut
+ * from facets, most of all where snow (which grows the surface along its normal) lies on it.
+ * Average the normals of the vertices that sit at the same place.
+ */
+export function smoothNormals(g: THREE.BufferGeometry): void {
+  const pos = g.getAttribute('position') as THREE.BufferAttribute;
+  const nrm = g.getAttribute('normal') as THREE.BufferAttribute;
+  const key = (i: number) => `${Math.round(pos.getX(i) * 1e4)},${Math.round(pos.getY(i) * 1e4)},${Math.round(pos.getZ(i) * 1e4)}`;
+  const sum = new Map<string, THREE.Vector3>();
+  for (let i = 0; i < pos.count; i++) {
+    const k = key(i);
+    let v = sum.get(k);
+    if (!v) sum.set(k, (v = new THREE.Vector3()));
+    v.x += nrm.getX(i);
+    v.y += nrm.getY(i);
+    v.z += nrm.getZ(i);
+  }
+  const n = new THREE.Vector3();
+  for (let i = 0; i < pos.count; i++) {
+    n.copy(sum.get(key(i))!).normalize();
+    nrm.setXYZ(i, n.x, n.y, n.z);
+  }
+  nrm.needsUpdate = true;
 }

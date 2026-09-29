@@ -17,6 +17,7 @@ export const autumn: Season = {
   // the leaves have thinned: more gaps for the low sun
   canopy: { kind: 'leaves', clusters: 60, pieces: 1800, size: [9, 20] },
   foliage: { leaf: '#e0561c', leafLit: '#ffc23c', shade: '#6a2c10', moss: '#6a8a2a', alt: '#b8261a' },
+  snow: 0,
   exposure: 1.35,
   bamboo: { age: 0.9, fresh: '#8fa546', aged: '#caa565' },
   wind: 0.3,
@@ -33,6 +34,7 @@ export const autumn: Season = {
     fernScale: 0.55,
     litter: { colors: REDS, tone: 0.95, count: 480, size: 0.062, shape: 'leaf' },
     floaters,
+    shrubs: 0,
     floaterKind: 'leaf',
   },
   falling: { kind: 'leaf', count: 220, colors: REDS, size: [0.045, 0.07], speed: [0.16, 0.34], sway: 0.16, spin: 1.4, landsInBasin: true },

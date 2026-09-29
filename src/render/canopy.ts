@@ -67,6 +67,10 @@ export class Canopy {
     g.clearRect(0, 0, S, S);
     const rand = mulberry32(77);
     g.fillStyle = '#000';
+    if (style.kind === 'bare') {
+      this.drawTwigs(g, S, rand, style);
+      return;
+    }
     const clusters = Array.from({ length: style.clusters }, () => ({ x: rand() * S, y: rand() * S, r: 60 + rand() * 140 }));
     for (let i = 0; i < style.pieces; i++) {
       const c = clusters[Math.floor(rand() * clusters.length)];
@@ -78,6 +82,35 @@ export class Canopy {
         g.ellipse(x + ox, y + oy, len, len * 0.42, rand() * Math.PI, 0, Math.PI * 2);
         g.fill();
       }
+    }
+  }
+
+  /**
+   * Bare branches (winter): a net of thin, forking twigs; `clusters` is how many boughs start, and
+   * `pieces` how many twig strokes in all. Drawn wrapped around the edges, so the layer tiles.
+   */
+  private drawTwigs(g: CanvasRenderingContext2D, S: number, rand: () => number, style: CanopyStyle): void {
+    g.strokeStyle = '#000';
+    g.lineCap = 'round';
+    const offsets = [[0, 0], [-S, 0], [S, 0], [0, -S], [0, S]];
+    const stroke = (x: number, y: number, ang: number, len: number, width: number, depth: number) => {
+      const x2 = x + Math.cos(ang) * len, y2 = y + Math.sin(ang) * len;
+      g.lineWidth = width;
+      for (const [ox, oy] of offsets) {
+        g.beginPath();
+        g.moveTo(x + ox, y + oy);
+        g.lineTo(x2 + ox, y2 + oy);
+        g.stroke();
+      }
+      if (depth <= 0) return;
+      // it forks: two thinner, shorter twigs, and sometimes goes straight on
+      stroke(x2, y2, ang + (0.35 + rand() * 0.5), len * (0.7 + rand() * 0.15), width * 0.72, depth - 1);
+      stroke(x2, y2, ang - (0.35 + rand() * 0.5), len * (0.7 + rand() * 0.15), width * 0.72, depth - 1);
+    };
+    const starts = style.clusters;
+    const depth = Math.max(1, Math.round(style.pieces / starts));
+    for (let i = 0; i < starts; i++) {
+      stroke(rand() * S, rand() * S, rand() * Math.PI * 2, style.size[1] * (1 + rand()), style.size[0], depth);
     }
   }
 

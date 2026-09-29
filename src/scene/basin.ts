@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import { Noise2 } from '../render/noise';
 import { chainCompile } from '../render/shaderChain';
+import { snowify } from '../render/snow';
 import { andesite } from '../render/textures';
 import { mossUniform, setMossColor } from './rockMaterial';
 import type { Season } from './seasons';
@@ -137,6 +138,7 @@ export function buildBasin(season: Season): THREE.Mesh {
         '#include <normal_fragment_maps>\nnormal = normalize(mix(normal, normalize(normal + (vec3(mossF.g, mossF.r, mossT.g) - 0.5) * 0.9), mossK));',
       );
   });
+  snowify(mat, 0.016);
   const mesh = new THREE.Mesh(g, mat);
   mesh.castShadow = true;
   mesh.receiveShadow = true;

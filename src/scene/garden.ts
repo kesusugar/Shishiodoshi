@@ -4,11 +4,12 @@ import { mulberry32 } from './random';
 import type { Season } from './seasons';
 import { leafGeometry, mapleLeafTexture } from './leaves';
 import { mossyRockMaterial } from './rockMaterial';
+import { snowify } from '../render/snow';
 import { translucentLeaves } from './translucent';
-import { buildCherryBranch } from './cherryBranch';
+import { buildBareBranch, buildCherryBranch } from './cherryBranch';
 import { petalGeometry } from './blossom';
 import { petalTexture } from './blossom';
-import { rockGeometry } from './shishiodoshi';
+import { rockGeometry, smoothNormals } from './shishiodoshi';
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 
 /**
@@ -57,6 +58,7 @@ export function buildGarden(season: Season, _canopy: Canopy['uniforms'], basin: 
       return g;
     });
     const mat = new THREE.MeshStandardMaterial({ roughness: 0.35, metalness: 0, vertexColors: false });
+    snowify(mat, 0.006);
     const perVariant = 900;
     const m = new THREE.Matrix4(), q = new THREE.Quaternion(), e = new THREE.Euler(), p = new THREE.Vector3(), s = new THREE.Vector3();
     const col = new THREE.Color();
@@ -114,6 +116,33 @@ export function buildGarden(season: Season, _canopy: Canopy['uniforms'], basin: 
 
   root.add(contactShadows(contacts));
 
+  // ---- shrubs behind the boulders (winter): dark evergreen humps, white on top
+  if (season.garden.shrubs > 0) {
+    const mat = new THREE.MeshStandardMaterial({ color: '#2c4632', roughness: 1 });
+    snowify(mat, 0.03);
+    const spots: [number, number, number][] = [
+      [-1.6, -1.7, 0.55], [-0.5, -2.0, 0.6], [0.75, -1.8, 0.5], [1.7, -1.5, 0.55], [-2.0, -0.7, 0.45],
+      [2.0, -0.4, 0.45], [0.1, -2.6, 0.7], [-1.2, -2.5, 0.65], [1.4, -2.5, 0.65],
+    ];
+    for (const [x, z, r] of spots.slice(0, season.garden.shrubs)) {
+      const g = new THREE.IcosahedronGeometry(1, 4);
+      const p = g.getAttribute('position') as THREE.BufferAttribute;
+      const v = new THREE.Vector3(), off = rand() * 10;
+      for (let i = 0; i < p.count; i++) {
+        v.fromBufferAttribute(p, i);
+        const lump = 1 + 0.16 * Math.sin(v.x * 5 + off) * Math.sin(v.y * 4.3 + off * 1.3) + 0.1 * Math.sin(v.z * 8 + off * 2);
+        p.setXYZ(i, v.x * lump, v.y * lump, v.z * lump);
+      }
+      g.computeVertexNormals();
+      smoothNormals(g);
+      const shrub = new THREE.Mesh(g, mat);
+      shrub.scale.set(r, r * 0.75, r);
+      shrub.position.set(x, r * 0.3, z);
+      shrub.receiveShadow = true;
+      root.add(shrub);
+    }
+  }
+
   // ---- ferns: clumps of fronds, each a curved stem with leaflets that shrink toward the tip
   {
     const frond = fernFrond(rand);
@@ -155,10 +184,10 @@ export function buildGarden(season: Season, _canopy: Canopy['uniforms'], basin: 
   translucentLeaves(leafMat, new THREE.Color(season.foliage.leafLit));
   const twigMat = new THREE.MeshStandardMaterial({ color: '#3a2a1d', roughness: 0.85 });
   const branches: THREE.Group[] = [];
-  if (season.garden.branch === 'cherry') {
-    const cherry = buildCherryBranch(rand, new THREE.Color('#ffb0c8'));
-    branches.push(cherry.group);
-    root.add(cherry.group);
+  if (season.garden.branch === 'cherry' || season.garden.branch === 'bare') {
+    const bough = season.garden.branch === 'cherry' ? buildCherryBranch(rand, new THREE.Color('#ffb0c8')) : buildBareBranch(rand);
+    branches.push(bough.group);
+    root.add(bough.group);
   } else if (season.garden.branch === 'maple') {
     // it comes in from beyond the right edge of the main view and droops down its right side
     const base = new THREE.Vector3(1.0, 1.02, 0.62);

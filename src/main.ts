@@ -20,6 +20,7 @@ import { buildShishiodoshi } from './scene/shishiodoshi';
 import { pickSeason, rememberSeason, seasons, type Season, type SeasonName } from './scene/seasons';
 import { disposeTree } from './scene/dispose';
 import { setMossColor } from './scene/rockMaterial';
+import { setSnow } from './render/snow';
 import { buildSeasonBar } from './ui/seasonBar';
 import { buildStage, cameraPresets, type CameraPreset } from './scene/stage';
 import { FixedStepper } from './sim/fixedStep';
@@ -70,6 +71,7 @@ const hud = new Hud(hudEl, `${probe.gpu}  [${quality.name}]`);
 if (capture) hudEl.hidden = true;
 
 let season: Season = pickSeason(params);
+setSnow(season.snow);
 probe.season = season.name;
 const scene = new THREE.Scene();
 const stage = buildStage(renderer, scene, season);
@@ -291,6 +293,7 @@ async function changeSeason(name: SeasonName, instant = false): Promise<void> {
   }
   season = next;
   setMossColor(next.foliage.moss);
+  setSnow(next.snow);
   stage.setSeason(next);
   renderer.toneMappingExposure = next.exposure;
   canopy.setStyle(next.canopy);

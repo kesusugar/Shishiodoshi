@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import { chainCompile } from '../render/shaderChain';
+import { snowify } from '../render/snow';
 import { andesite, type SurfaceMaps } from '../render/textures';
 import type { Season } from './seasons';
 
@@ -62,5 +63,6 @@ export function mossyRockMaterial(season: Season, seed: number): THREE.MeshStand
         '#include <roughnessmap_fragment>\nroughnessFactor *= mix(1.1, 0.45, smoothstep(0.45, 0.75, wetStreak));\nroughnessFactor = mix(roughnessFactor, 1.0, max(mossK, sunk * 0.6));',
       );
   });
+  snowify(mat, 0.014);
   return mat;
 }

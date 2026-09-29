@@ -17,6 +17,7 @@ export const spring: Season = {
   // blossom is thick: many small pieces, and only small gaps for the sun
   canopy: { kind: 'blossom', clusters: 55, pieces: 3000, size: [6, 13] },
   foliage: { leaf: '#ffd6e4', leafLit: '#ffffff', shade: '#d09cb4', moss: '#7fa62c', alt: '#ffffff' },
+  snow: 0,
   exposure: 1.3,
   bamboo: { age: 0.9, fresh: '#8fa546', aged: '#caa565' },
   wind: 0.25,
@@ -27,6 +28,7 @@ export const spring: Season = {
     fernScale: 0.9,
     litter: { colors: PINKS, tone: 1, count: 1400, size: 0.024, shape: 'petal' },
     floaters,
+    shrubs: 0,
     floaterKind: 'petal',
   },
   falling: { kind: 'petal', count: 380, colors: PINKS, size: [0.014, 0.024], speed: [0.1, 0.22], sway: 0.25, spin: 2.2, landsInBasin: true },
