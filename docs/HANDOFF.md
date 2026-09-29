@@ -75,6 +75,8 @@ node tools/audio.mjs --seconds=6 --start=24        # 音を WAV とスペクト�
 
 ## 環境の注意
 
+- **スマホの音**: iPhone は Web Audio を消音スイッチで消される種類の音として扱うので、開始のタップで「再生」扱いに切り替えている（Audio Session API、古い iOS は無音の <audio> をループ）。電話やアプリ切り替えで止まった音は、次のタップか画面に戻ったときに再開する（`src/audio/startGate.ts`）
+
 - **クラウド（Claude Code on the web）でも作業できる**: `.claude/hooks/session-start.sh` がセッション開始時に `SHISHI_BROWSER`（入っている Chromium）と `SHISHI_SWIFTSHADER=1`（GPU なしの描画）を設定し、`npm ci` する。撮影・音の書き出しはそのまま動く（1 視点 50 秒ほどかかる）。fps はクラウドでは測れない
 
 - 元の PC は Intel Iris Xe（内蔵 GPU）。fps は PC の状態に大きく左右される（バッテリー節約中は 30fps 上限、Dropbox 同期中などは 16fps 程度まで落ちた）。**遅くなったら、まず前のコミットでも同じか測って、コードのせいか PC のせいかを切り分ける**
